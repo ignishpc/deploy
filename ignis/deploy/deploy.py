@@ -37,9 +37,9 @@ def cli():
 	zk_start.add_argument('--conf', dest='conf', action='store', metavar='path',
 	                      help='Conf directory, default /etc/ignis/zookeeper')
 	zk_start.add_argument('-p', '--ports', dest='ports', nargs=3, metavar='int', type=int,
-	                      help='Ports used by allocator services, default 2888 3888 2181')
+	                      help='Ports used by zookeper services, default 2888 3888 2181')
 	zk_start.add_argument('-f', '--force', dest='force', action='store_true',
-	                      help='Destroy the allocator if exists')
+	                      help='Destroy the zookeper if exists')
 
 	parser_zk_stop = subparsers_zk.add_parser("stop", description='Stop the Zookeeper service')
 	parser_zk_resume = subparsers_zk.add_parser("resume", description='Resume the Zookeeper service')
@@ -65,14 +65,14 @@ def cli():
 	                         help='Mesos master Port, default 5050')
 	mesos_start.add_argument('--port-agent', dest='port_agent', action='store', metavar='int', type=int,
 	                         help='Mesos agent Port, default 5051')
-	mesos_start.add_argument('--port-marathon', dest='port_marathon', action='store', metavar='int', type=int,
-	                         help='Marathon web Port, default 8080')
+	mesos_start.add_argument('--port-chronos', dest='port_chronos', action='store', metavar='int', type=int,
+	                         help='Chronos http Port, default 8080')
 	mesos_start.add_argument('--data', dest='data', action='store', metavar='path',
 	                         help='Data directory, default /var/lib/ignis/mesos')
 	mesos_start.add_argument('--docker', dest='docker_bin', action='store', metavar='path',
 	                         help='Docker binary, default /usr/local/bin/docker')
 	mesos_start.add_argument('-f', '--force', dest='force', action='store_true',
-	                         help='Destroy the allocator if exists')
+	                         help='Destroy the mesos if exists')
 
 	mesos_stop = subparsers_mesos.add_parser("stop", description='Stop the Mesos service')
 	mesos_resume = subparsers_mesos.add_parser("resume", description='Resume the Mesos service')
@@ -93,6 +93,14 @@ def cli():
 	subparsers_submitter = parser_submitter.add_subparsers(dest='action', help="Ignis submitter service actions")
 
 	submitter_start = subparsers_submitter.add_parser("start", description='Start a Ignis submitter service')
+	submitter_start.add_argument('--dfs', dest='dfs', action='store', metavar='str',
+	                         help='Distributed File System path on host machine (required)', required=True)
+	submitter_start.add_argument('--password', dest='password', action='store', metavar='str',
+	                         help='Set the root password, default ignis')
+	submitter_start.add_argument('--port', dest='port', action='store', metavar='int', type=int,
+	                         help='SSH server Port, default 2222')
+	submitter_start.add_argument('-f', '--force', dest='force', action='store_true',
+	                         help='Destroy the submitter if exists')
 
 	submitter_stop = subparsers_submitter.add_parser("stop", description='Stop the Ignis submitter service')
 	submitter_resume = subparsers_submitter.add_parser("resume", description='Resume the Ignis submitter service')
@@ -137,7 +145,7 @@ def cli():
 			            resources=args.resources,
 			            port_master=args.port_master,
 			            port_agent=args.port_agent,
-			            port_marathon=args.port_marathon,
+			            port_chronos=args.port_chronos,
 			            data=args.data,
 			            docker_bin=args.docker_bin,
 			            force=args.force,
@@ -150,7 +158,10 @@ def cli():
 			mesos.destroy()
 	elif args.service == "submitter":
 		if args.action == "start":
-			submitter.start()
+			submitter.start(port=args.port,
+			                dfs=args.dfs,
+			                password=args.password,
+			                force=args.force)
 		elif args.action == "stop":
 			submitter.stop()
 		elif args.action == "resume":

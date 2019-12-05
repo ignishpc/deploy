@@ -1,7 +1,7 @@
 import docker
 import utils
 
-IMAGE_NAME = "ignisframework/glusterfs"
+IMAGE_NAME = "ignishpc/glusterfs"
 MODULE_NAME = "glusterfs"
 CONTAINER_NAME = "ignis-glusterfs"
 
