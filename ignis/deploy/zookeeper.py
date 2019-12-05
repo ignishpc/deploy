@@ -4,7 +4,7 @@ import shutil
 import utils
 import time
 
-IMAGE_NAME = "ignisframework/zookeeper"
+IMAGE_NAME = "ignishpc/zookeeper"
 MODULE_NAME = "zookeeper"
 CONTAINER_NAME = "ignis-zookeeper"
 CONTAINER_LOG = "/var/log/ignis/zookeeper/"

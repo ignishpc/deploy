@@ -3,13 +3,13 @@ import os
 import shutil
 import utils
 
-IMAGE_NAME = "ignisframework/mesos"
+IMAGE_NAME = "ignishpc/mesos"
 MODULE_NAME = "mesos"
 CONTAINER_NAME = "ignis-mesos"
 CONTAINER_DATA = "/var/lib/ignis/mesos/"
 
 
-def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, port_marathon, data, docker_bin, force):
+def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, port_chronos, data, docker_bin, force):
 	try:
 		client = docker.from_env()
 		container = utils.getContainer(client, CONTAINER_NAME)
@@ -51,7 +51,7 @@ def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, por
 			"MESOS_ADVERSTISE_IP": bind,
 			"PORT_MASTER": str(port_master if port_master else 5050),
 			"PORT_AGENT": str(port_agent if port_agent else 5051),
-			"PORT_MARATHON": str(port_marathon if port_marathon else 8080),
+			"PORT_CHRONOS": str(port_chronos if port_chronos else 8080),
 			"ZOOKEEPER": zookeeper
 		}
 		if quorum is not None:
