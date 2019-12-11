@@ -6,7 +6,7 @@ MODULE_NAME = "submitter"
 CONTAINER_NAME = "ignis-submitter"
 
 
-def start(port, dfs, password, force):
+def start(port, dfs, dfs_home, password, scheduler, shceduler_url, force):
 	try:
 		client = docker.from_env()
 		container = utils.getContainer(client, CONTAINER_NAME)
@@ -23,16 +23,22 @@ def start(port, dfs, password, force):
 		if password is None:
 			password = "ignis"
 
+		if dfs_home is None:
+			dfs_home = "/media/dfs"
+
 		mounts = [
 			docker.types.Mount(source=dfs, target="/media/dfs", type="bind"),
 		]
 
 		environment = {
-			"IGNIS_DFS": dfs,
+			"IGNIS_DFS_ID": dfs,
+			"IGNIS_DFS_HOME": dfs_home,
+			"IGNIS_SCHEDULER_TYPE": scheduler,
+			"IGNIS_SCHEDULER_URL": shceduler_url,
 		}
 
 		container_ports = {
-			"22":str(port)
+			"22": str(port)
 		}
 
 		command = ["/opt/ignis/bin/ignis-sshd"]

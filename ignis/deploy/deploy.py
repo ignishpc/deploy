@@ -65,8 +65,8 @@ def cli():
 	                         help='Mesos master Port, default 5050')
 	mesos_start.add_argument('--port-agent', dest='port_agent', action='store', metavar='int', type=int,
 	                         help='Mesos agent Port, default 5051')
-	mesos_start.add_argument('--port-chronos', dest='port_chronos', action='store', metavar='int', type=int,
-	                         help='Chronos http Port, default 8080')
+	mesos_start.add_argument('--port-marathon', dest='port_marathon', action='store', metavar='int', type=int,
+	                         help='Marathon http Port, default 8080')
 	mesos_start.add_argument('--data', dest='data', action='store', metavar='path',
 	                         help='Data directory, default /var/lib/ignis/mesos')
 	mesos_start.add_argument('--docker', dest='docker_bin', action='store', metavar='path',
@@ -94,18 +94,21 @@ def cli():
 
 	submitter_start = subparsers_submitter.add_parser("start", description='Start a Ignis submitter service')
 	submitter_start.add_argument('--dfs', dest='dfs', action='store', metavar='str',
-	                         help='Distributed File System path on host machine (required)', required=True)
+	                             help='Distributed File System path on host machine (required)', required=True)
+	submitter_start.add_argument('--dfs-home', dest='dfs_home', action='store', metavar='str',
+	                             help='Distributed File System path on containers')
+	submitter_start.add_argument('--scheduler', dest='scheduler', action='store', metavar=('name', 'url'), nargs=2,
+	                             help='Scheduler used for container allocation (required)', required=True)
 	submitter_start.add_argument('--password', dest='password', action='store', metavar='str',
-	                         help='Set the root password, default ignis')
+	                             help='Set the root password, default ignis')
 	submitter_start.add_argument('--port', dest='port', action='store', metavar='int', type=int,
-	                         help='SSH server Port, default 2222')
+	                             help='SSH server Port, default 2222')
 	submitter_start.add_argument('-f', '--force', dest='force', action='store_true',
-	                         help='Destroy the submitter if exists')
+	                             help='Destroy the submitter if exists')
 
 	submitter_stop = subparsers_submitter.add_parser("stop", description='Stop the Ignis submitter service')
 	submitter_resume = subparsers_submitter.add_parser("resume", description='Resume the Ignis submitter service')
 	submitter_destroy = subparsers_submitter.add_parser("destroy", description='Destroy the Ignis submitter service')
-
 
 	args = parser.parse_args(['-h'] if len(sys.argv) == 1 else None)
 
@@ -125,7 +128,7 @@ def cli():
 			                id=args.id,
 			                partner=args.partner,
 			                password=args.password,
-							ports=args.ports,
+			                ports=args.ports,
 			                logs=args.logs,
 			                conf=args.conf,
 			                data=args.data,
@@ -145,7 +148,7 @@ def cli():
 			            resources=args.resources,
 			            port_master=args.port_master,
 			            port_agent=args.port_agent,
-			            port_chronos=args.port_chronos,
+			            port_marathon=args.port_marathon,
 			            data=args.data,
 			            docker_bin=args.docker_bin,
 			            force=args.force,
@@ -160,7 +163,10 @@ def cli():
 		if args.action == "start":
 			submitter.start(port=args.port,
 			                dfs=args.dfs,
+			                dfs_home=args.dfs_home,
 			                password=args.password,
+			                scheduler=args.scheduler[0],
+			                shceduler_url=args.scheduler[1],
 			                force=args.force)
 		elif args.action == "stop":
 			submitter.stop()
