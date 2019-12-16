@@ -71,7 +71,8 @@ def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, por
 			privileged=True,
 			command=command,
 			mounts=mounts,
-			network_mode="host"
+			network_mode="host",
+			pid_mode="host"
 		)
 
 	except Exception as ex:
