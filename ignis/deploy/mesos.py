@@ -37,7 +37,7 @@ def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, por
 			os.makedirs(data)
 
 		if docker_bin is None:
-			docker_bin = "/usr/local/bin/docker"
+			docker_bin = "/usr/bin/docker"
 
 		mounts = [
 			docker.types.Mount(source=data, target="/var/lib/mesos", type="bind"),
