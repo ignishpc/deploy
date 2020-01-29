@@ -70,7 +70,7 @@ def cli():
 	mesos_start.add_argument('--data', dest='data', action='store', metavar='path',
 	                         help='Data directory, default /var/lib/ignis/mesos')
 	mesos_start.add_argument('--docker', dest='docker_bin', action='store', metavar='path',
-	                         help='Docker binary, default /usr/local/bin/docker')
+	                         help='Docker binary, default /usr/bin/docker')
 	mesos_start.add_argument('-f', '--force', dest='force', action='store_true',
 	                         help='Destroy the mesos if exists')
 
