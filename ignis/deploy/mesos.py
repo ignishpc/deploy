@@ -48,7 +48,7 @@ def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, por
 		]
 
 		environment = {
-			"MESOS_ADVERSTISE_IP": bind,
+			"MESOS_HOSTNAME": bind,
 			"PORT_MASTER": str(port_master if port_master else 5050),
 			"PORT_AGENT": str(port_agent if port_agent else 5051),
 			"PORT_MARATHON": str(port_marathon if port_marathon else 8080),
