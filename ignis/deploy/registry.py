@@ -1,12 +1,17 @@
+import os
+
 import docker
+
 import utils
 
-IMAGE_NAME = "ignishpc/submitter"
-MODULE_NAME = "submitter"
-CONTAINER_NAME = "ignis-submitter"
+IMAGE_NAME = "registry:2.7.1"
+MODULE_NAME = "registry"
+CONTAINER_NAME = "ignis-registry"
+DEFAULT = "IGNIS_REGISTRY_DEFAULT"
+URL = "IGNIS_REGISTRY"
 
 
-def start(port, dfs, dfs_home, password, scheduler, shceduler_url, default_registry, force):
+def start(bind, port, path, default, force):
 	try:
 		client = docker.from_env()
 		container = utils.getContainer(client, CONTAINER_NAME)
@@ -17,43 +22,42 @@ def start(port, dfs, dfs_home, password, scheduler, shceduler_url, default_regis
 				print("error: " + CONTAINER_NAME + " already exists")
 				exit(-1)
 
+		if bind is None:
+			bind = utils.getHostname()
+			print("info: " + bind + " selected for internal cluster communications, use --bind to select another")
+
 		if port is None:
-			port = 2222
+			port = 5000
 
-		if password is None:
-			password = "ignis"
+		if path is None:
+			path = "/var/lib/ignis/registry"
 
-		if dfs_home is None:
-			dfs_home = "/media/dfs"
+		if not os.path.exists(path):
+			os.makedirs(path)
 
 		mounts = [
-			docker.types.Mount(source=dfs, target="/media/dfs", type="bind"),
+			docker.types.Mount(source=path, target="/var/lib/registry", type="bind"),
 		]
 
-		environment = {
-			"IGNIS_DFS_ID": dfs,
-			"IGNIS_DFS_HOME": dfs_home,
-			"IGNIS_SCHEDULER_TYPE": scheduler,
-			"IGNIS_SCHEDULER_URL": shceduler_url,
+		labels = {
+			URL: bind + ":" + str(port),
+			DEFAULT: str(default),
 		}
 
 		container_ports = {
-			"22": str(port)
+			"5000": str(port)
 		}
 
-		command = ["/opt/ignis/bin/ignis-sshd"]
-
 		container = client.containers.run(
-			image=default_registry+IMAGE_NAME,
+			image=IMAGE_NAME,
 			name=CONTAINER_NAME,
 			detach=True,
-			environment=environment,
-			command=command,
+			labels=labels,
 			mounts=mounts,
 			ports=container_ports
 		)
 
-		container.exec_run(["bash", "-c", 'echo "root:' + password + '" | chpasswd'])
+		print("info: use " + bind + ":" + str(port) + " to refer the registry")
 
 	except Exception as ex:
 		print("error:  " + str(ex))
@@ -78,3 +82,14 @@ def stop():
 def destroy():
 	client = docker.from_env()
 	utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.remove(force=True))
+
+
+def parse(r):
+	if r is None:
+		client = docker.from_env()
+		container = utils.getContainer(client, CONTAINER_NAME)
+		if container:
+			if DEFAULT in container.labels:
+				r = container.labels[URL]
+	if r is not None:
+		return r + "/"

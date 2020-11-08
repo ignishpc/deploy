@@ -1,6 +1,8 @@
-import docker
 import os
 import shutil
+
+import docker
+
 import utils
 
 IMAGE_NAME = "ignishpc/mesos"
@@ -9,7 +11,8 @@ CONTAINER_NAME = "ignis-mesos"
 CONTAINER_DATA = "/var/lib/ignis/mesos/"
 
 
-def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, port_marathon, data, docker_bin, force):
+def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, port_marathon, data, docker_bin,
+          default_registry, force):
 	try:
 		client = docker.from_env()
 		container = utils.getContainer(client, CONTAINER_NAME)
@@ -64,7 +67,7 @@ def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, por
 		command = ["/bin/start-mesos.sh"]
 
 		container = client.containers.run(
-			image=IMAGE_NAME,
+			image=default_registry + IMAGE_NAME,
 			name=CONTAINER_NAME,
 			detach=True,
 			environment=environment,

@@ -2,10 +2,12 @@
 
 import argparse
 import sys
-import zookeeper
-import mesos
-import submitter
+
 import glusterfs
+import mesos
+import registry
+import submitter
+import zookeeper
 
 
 def cli():
@@ -14,8 +16,29 @@ def cli():
 	subparsers = parser.add_subparsers(dest='service', help="Available services")
 
 	parser_check = subparsers.add_parser("status", description='Check modules status')
+	# Registry
+	parser_rty = subparsers.add_parser("registry", description='Image registry')
+	subparsers_rty = parser_rty.add_subparsers(dest='action', help="Registry service actions")
+
+	rty_start = subparsers_rty.add_parser("start", description='Start a registry service')
+	rty_start.add_argument('-b', '--bind', dest='bind', action='store', metavar='address',
+	                       help='The address that should be bound to for internal cluster communications, '
+	                            'default the first available private IPv4 address')
+	rty_start.add_argument('-d', '--default', dest='default', action='store_true',
+	                       help='Set the Image registry as default')
+	rty_start.add_argument('--port', dest='port', action='store', metavar='int', type=int,
+	                       help='Registry server Port, default 5000')
+	rty_start.add_argument('--path', dest='path', action='store', metavar='str',
+	                       help='File System path to store the registry contents')
+	rty_start.add_argument('-f', '--force', dest='force', action='store_true',
+	                       help='Destroy the image registry if exists')
+
+	rty_stop = subparsers_rty.add_parser("stop", description='Stop the registry service')
+	rty_resume = subparsers_rty.add_parser("resume", description='Resume the registry service')
+	rty_destroy = subparsers_rty.add_parser("destroy", description='Destroy the registry service')
+
 	# Zookeper parser
-	parser_zk = subparsers.add_parser("zookeeper", description='Manages a Zookeeper cluster')
+	parser_zk = subparsers.add_parser("zookeeper", description='Zookeeper cluster')
 	subparsers_zk = parser_zk.add_subparsers(dest='action', help="Zookeeper service actions")
 
 	zk_start = subparsers_zk.add_parser("start", description='Start a Zookeeper service')
@@ -40,16 +63,18 @@ def cli():
 	                      help='Ports used by zookeper services, default 2888 3888 2181')
 	zk_start.add_argument('-f', '--force', dest='force', action='store_true',
 	                      help='Destroy the zookeper if exists')
+	zk_start.add_argument('--default-registry', dest='registry', action='store', metavar='url',
+	                      help='Docker image registry to pull image')
 
-	parser_zk_stop = subparsers_zk.add_parser("stop", description='Stop the Zookeeper service')
-	parser_zk_resume = subparsers_zk.add_parser("resume", description='Resume the Zookeeper service')
-	parser_zk_destroy = subparsers_zk.add_parser("destroy", description='Destroy the Zookeeper service')
+	zk_stop = subparsers_zk.add_parser("stop", description='Stop the Zookeeper service')
+	zk_resume = subparsers_zk.add_parser("resume", description='Resume the Zookeeper service')
+	zk_destroy = subparsers_zk.add_parser("destroy", description='Destroy the Zookeeper service')
 
 	# Mesos parser
-	parser_mesos = subparsers.add_parser("mesos", description='Start a Mesos service')
+	parser_mesos = subparsers.add_parser("mesos", description='Mesos cluster')
 	subparsers_mesos = parser_mesos.add_subparsers(dest='action', help="Mesos service actions")
 
-	mesos_start = subparsers_mesos.add_parser("start", description='Start a Zookeeper service')
+	mesos_start = subparsers_mesos.add_parser("start", description='Start a Mesos service')
 	mesos_start.add_argument('-b', '--bind', dest='bind', action='store', metavar='address',
 	                         help='The address that should be bound to for internal cluster communications, '
 	                              'default the first available private IPv4 address')
@@ -73,6 +98,8 @@ def cli():
 	                         help='Docker binary, default /usr/bin/docker')
 	mesos_start.add_argument('-f', '--force', dest='force', action='store_true',
 	                         help='Destroy the mesos if exists')
+	mesos_start.add_argument('--default-registry', dest='registry', action='store', metavar='url',
+	                         help='Docker image registry to pull image')
 
 	mesos_stop = subparsers_mesos.add_parser("stop", description='Stop the Mesos service')
 	mesos_resume = subparsers_mesos.add_parser("resume", description='Resume the Mesos service')
@@ -89,7 +116,7 @@ def cli():
 	glusterfs_destroy = subparsers_glusterfs.add_parser("destroy", description='Destroy the Glusterfs service')
 
 	# Submitter parser
-	parser_submitter = subparsers.add_parser("submitter", description='Manages the Ignis applications submitter')
+	parser_submitter = subparsers.add_parser("submitter", description='Ignis applications submitter')
 	subparsers_submitter = parser_submitter.add_subparsers(dest='action', help="Ignis submitter service actions")
 
 	submitter_start = subparsers_submitter.add_parser("start", description='Start a Ignis submitter service')
@@ -105,6 +132,8 @@ def cli():
 	                             help='SSH server Port, default 2222')
 	submitter_start.add_argument('-f', '--force', dest='force', action='store_true',
 	                             help='Destroy the submitter if exists')
+	submitter_start.add_argument('--default-registry', dest='registry', action='store', metavar='url',
+	                             help='Docker image registry to pull image')
 
 	submitter_stop = subparsers_submitter.add_parser("stop", description='Stop the Ignis submitter service')
 	submitter_resume = subparsers_submitter.add_parser("resume", description='Resume the Ignis submitter service')
@@ -116,12 +145,28 @@ def cli():
 		subparsers.choices[args.service].print_help()
 		sys.exit(0)
 
+	default_registry = registry.parse(args.registry if "registry" in args else "")
+
 	if args.service == "status":
 		print("Service Status:")
+		print("   Registry  " + registry.status())
 		print("  Zookeeper  " + zookeeper.status())
 		print("      Mesos  " + mesos.status())
 		print("  Submitter  " + submitter.status())
 		print("  GlusterFS  " + glusterfs.status())
+	elif args.service == "registry":
+		if args.action == "start":
+			registry.start(bind=args.bind,
+			               port=args.port,
+			               path=args.path,
+			               default=args.default,
+			               force=args.force)
+		elif args.action == "stop":
+			registry.stop()
+		elif args.action == "resume":
+			registry.resume()
+		elif args.action == "destroy":
+			registry.destroy()
 	elif args.service == "zookeeper":
 		if args.action == "start":
 			zookeeper.start(bind=args.bind,
@@ -132,6 +177,7 @@ def cli():
 			                logs=args.logs,
 			                conf=args.conf,
 			                data=args.data,
+			                default_registry=default_registry,
 			                force=args.force)
 		elif args.action == "stop":
 			zookeeper.stop()
@@ -151,6 +197,7 @@ def cli():
 			            port_marathon=args.port_marathon,
 			            data=args.data,
 			            docker_bin=args.docker_bin,
+			            default_registry=default_registry,
 			            force=args.force,
 			            )
 		elif args.action == "stop":
@@ -167,6 +214,7 @@ def cli():
 			                password=args.password,
 			                scheduler=args.scheduler[0],
 			                shceduler_url=args.scheduler[1],
+			                default_registry=default_registry,
 			                force=args.force)
 		elif args.action == "stop":
 			submitter.stop()

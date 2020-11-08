@@ -1,9 +1,9 @@
-import subprocess
-import socket
-import random
-import string
 import base64
 import hashlib
+import random
+import socket
+import string
+import subprocess
 
 
 def getHostname():
@@ -42,15 +42,17 @@ def containerAction(client, name, module, action):
 		print("error: " + module + " not found")
 		exit(-1)
 
-
 def randomPassword():
 	return ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+
 
 def encode(s):
 	return s.encode('utf-8')
 
+
 def decode(bs):
 	return bs.decode('utf-8')
+
 
 def sha1base64(s):
 	return base64.b64encode(hashlib.sha1(encode(s)).digest())

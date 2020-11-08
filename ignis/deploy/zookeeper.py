@@ -1,8 +1,9 @@
-import docker
 import os
 import shutil
-import utils
 import time
+
+import docker
+import utils
 
 IMAGE_NAME = "ignishpc/zookeeper"
 MODULE_NAME = "zookeeper"
@@ -13,7 +14,7 @@ CONTAINER_DATA = "/var/lib/ignis/zookeeper/"
 RESOURCES = os.path.join(os.path.dirname(os.path.realpath(__file__)), "resources")
 
 
-def start(bind, id, partner, password, ports, logs, conf, data, force):
+def start(bind, id, partner, password, ports, logs, conf, data, default_registry, force):
 	try:
 		client = docker.from_env()
 		container = utils.getContainer(client, CONTAINER_NAME)
@@ -119,7 +120,7 @@ def start(bind, id, partner, password, ports, logs, conf, data, force):
 		command = ["/opt/zookeeper/bin/zkServer.sh", "start-foreground"]
 
 		container = client.containers.run(
-			image=IMAGE_NAME,
+			image=default_registry + IMAGE_NAME,
 			name=CONTAINER_NAME,
 			detach=True,
 			environment=environment,
