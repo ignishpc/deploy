@@ -92,5 +92,6 @@ def parse(r):
 		if container:
 			if DEFAULT in container.labels:
 				r = container.labels[URL]
-	if r is not None:
+	if r and r[-1] != '/':
 		return r + "/"
+	return r
