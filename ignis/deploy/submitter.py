@@ -39,7 +39,7 @@ def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, default_
 
 		if dns:
 			mounts.append(docker.types.Mount(source="/etc/hosts", target="/etc/hosts", type="bind", read_only=True))
-			environment["IGNIS_SCHEDULER_DNS"] = "True"
+			environment["IGNIS_SCHEDULER_DNS"] = "host"
 
 		if default_registry:
 			environment["IGNIS_REGISTRY"] = default_registry
