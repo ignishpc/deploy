@@ -29,7 +29,7 @@ def cli():
 	rty_start.add_argument('--port', dest='port', action='store', metavar='int', type=int,
 	                       help='Registry server Port, default 5000')
 	rty_start.add_argument('--path', dest='path', action='store', metavar='str',
-	                       help='File System path to store the registry contents')
+	                       help='File System path to store the registry contents, default /var/lib/ignis/registry')
 	rty_start.add_argument('-f', '--force', dest='force', action='store_true',
 	                       help='Destroy the image registry if exists')
 
@@ -128,6 +128,8 @@ def cli():
 	                             help='Scheduler used for container allocation (required)', required=True)
 	submitter_start.add_argument('--password', dest='password', action='store', metavar='str',
 	                             help='Set the root password, default ignis')
+	submitter_start.add_argument('--host-dns', dest='dns', action='store_true',
+	                             help='Enable host dns names')
 	submitter_start.add_argument('--port', dest='port', action='store', metavar='int', type=int,
 	                             help='SSH server Port, default 2222')
 	submitter_start.add_argument('-f', '--force', dest='force', action='store_true',
@@ -214,6 +216,7 @@ def cli():
 			                password=args.password,
 			                scheduler=args.scheduler[0],
 			                shceduler_url=args.scheduler[1],
+			                dns=args.dns,
 			                default_registry=default_registry,
 			                force=args.force)
 		elif args.action == "stop":

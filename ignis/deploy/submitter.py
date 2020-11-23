@@ -6,7 +6,7 @@ MODULE_NAME = "submitter"
 CONTAINER_NAME = "ignis-submitter"
 
 
-def start(port, dfs, dfs_home, password, scheduler, shceduler_url, default_registry, force):
+def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, default_registry, force):
 	try:
 		client = docker.from_env()
 		container = utils.getContainer(client, CONTAINER_NAME)
@@ -36,6 +36,13 @@ def start(port, dfs, dfs_home, password, scheduler, shceduler_url, default_regis
 			"IGNIS_SCHEDULER_TYPE": scheduler,
 			"IGNIS_SCHEDULER_URL": shceduler_url,
 		}
+
+		if dns:
+			mounts.append(docker.types.Mount(source="/etc/hosts", target="/etc/hosts", type="bind", read_only=True))
+			environment["IGNIS_SCHEDULER_DNS"] = "True"
+
+		if default_registry:
+			environment["IGNIS_REGISTRY"] = default_registry
 
 		container_ports = {
 			"22": str(port)
