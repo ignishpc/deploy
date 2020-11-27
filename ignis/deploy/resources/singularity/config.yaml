@@ -1,0 +1,47 @@
+
+server:
+  type: simple
+  applicationContextPath: /singularity
+  connector:
+    type: http
+    port: ${PORT_SERVICE}
+  requestLog:
+    appenders:
+      - type: file
+        currentLogFilename: /var/log/singularity-access.log
+        archivedLogFilenamePattern: /var/log/singularity-access-%d.log.gz
+
+# omit this entirely if not using MySQL
+#database:
+#  driverClass: com.mysql.jdbc.Driver
+#  user: [database username]
+#  password: [database password]
+#  url: jdbc:mysql://[database host]:[database port]/[database name]
+
+mesos:
+  master: ${MESOS_MASTER}
+  defaultCpus: 1
+  defaultMemory: 128
+  defaultDisk: 1024
+  frameworkName: Singularity
+  frameworkId: Singularity
+  frameworkFailoverTimeout: 1000000
+
+zookeeper:
+  quorum: ${ZOOKEEPER}
+  zkNamespace: singularity
+  sessionTimeoutMillis: 60000
+  connectTimeoutMillis: 5000
+  retryBaseSleepTimeMilliseconds: 1000
+  retryMaxTries: 3
+
+logging:
+  loggers:
+    "com.hubspot.singularity" : TRACE
+
+enableCorsFilter: true
+sandboxDefaultsToTaskId: false
+
+ui:
+  title: Singularity (ignis)
+  baseUrl: http://${BIND}:${PORT_SERVICE}/singularity

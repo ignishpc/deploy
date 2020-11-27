@@ -5,13 +5,18 @@ import docker
 
 import utils
 
-IMAGE_NAME = "ignishpc/mesos"
+MESOS_IMAGE_NAME = "ignishpc/mesos-base"
+MARATHON_IMAGE_NAME = "ignishpc/mesos-marathon"
+SINGULARITY_IMAGE_NAME = "ignishpc/mesos-singularity"
 MODULE_NAME = "mesos"
 CONTAINER_NAME = "ignis-mesos"
 CONTAINER_DATA = "/var/lib/ignis/mesos/"
+SINGULARITY_LOG = "/var/log/ignis/singularity/"
+SINGULARITY_CONF = "/etc/ignis/singularity/"
+RESOURCES = os.path.join(os.path.dirname(os.path.realpath(__file__)), "resources")
 
 
-def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, port_marathon, data, docker_bin,
+def start(service, bind, quorum, name, zookeeper, resources, port_master, port_agent, port_service, data, docker_bin,
           default_registry, force):
 	try:
 		client = docker.from_env()
@@ -54,7 +59,7 @@ def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, por
 			"MESOS_HOSTNAME": bind,
 			"PORT_MASTER": str(port_master if port_master else 5050),
 			"PORT_AGENT": str(port_agent if port_agent else 5051),
-			"PORT_MARATHON": str(port_marathon if port_marathon else 8080),
+			"PORT_SERVICE": str(port_service if port_service else 8080),
 			"ZOOKEEPER": zookeeper
 		}
 		if quorum is not None:
@@ -64,10 +69,38 @@ def start(bind, quorum, name, zookeeper, resources, port_master, port_agent, por
 		if resources is not None:
 			environment["MESOS_RESOURCES"] = resources
 
-		command = ["/bin/start-mesos.sh"]
+		if quorum is None:
+			image = MESOS_IMAGE_NAME
+			command = ["/bin/start-mesos.sh"]
+		if service == "marathon":
+			image = MARATHON_IMAGE_NAME
+			command = ["/bin/start-marathon.sh"]
+		else:
+			image = SINGULARITY_IMAGE_NAME
+			command = ["/bin/start-singularity.sh"]
+			mounts.append(docker.types.Mount(source=SINGULARITY_LOG, target="/var/log/singularity", type="bind"))
+			mounts.append(docker.types.Mount(source=SINGULARITY_CONF, target="/etc/singularity", type="bind"))
+
+			vars = {
+				"PORT_SERVICE": environment["PORT_SERVICE"],
+				"MESOS_MASTER": bind,
+				"ZOOKEEPER": zookeeper.replace("zk://", ""),
+				"BIND": bind
+			}
+			if not os.path.exists(SINGULARITY_LOG):
+				os.makedirs(SINGULARITY_LOG)
+			if not os.path.exists(SINGULARITY_CONF):
+				os.makedirs(SINGULARITY_CONF)
+			singularity_res = os.path.join(RESOURCES, "singularity")
+			with open(os.path.join(singularity_res, 'config.yaml'), 'r') as f:
+				conf = "\n".join(f.readlines())
+			for key, value in vars.items():
+				conf = conf.replace('${' + key + '}', value)
+			with open(os.path.join(SINGULARITY_CONF, 'config.yaml'), 'w') as f:
+				f.write(conf)
 
 		container = client.containers.run(
-			image=default_registry + IMAGE_NAME,
+			image=default_registry + image,
 			name=CONTAINER_NAME,
 			detach=True,
 			environment=environment,

@@ -75,6 +75,9 @@ def cli():
 	subparsers_mesos = parser_mesos.add_subparsers(dest='action', help="Mesos service actions")
 
 	mesos_start = subparsers_mesos.add_parser("start", description='Start a Mesos service')
+	mesos_start.add_argument('-s','--service', dest='mesos_service', action='store', choices=["marathon", "singularity"],
+	                         default="marathon",
+	                         help = 'Choose the service to run on mesos, default singularity')
 	mesos_start.add_argument('-b', '--bind', dest='bind', action='store', metavar='address',
 	                         help='The address that should be bound to for internal cluster communications, '
 	                              'default the first available private IPv4 address')
@@ -90,8 +93,8 @@ def cli():
 	                         help='Mesos master Port, default 5050')
 	mesos_start.add_argument('--port-agent', dest='port_agent', action='store', metavar='int', type=int,
 	                         help='Mesos agent Port, default 5051')
-	mesos_start.add_argument('--port-marathon', dest='port_marathon', action='store', metavar='int', type=int,
-	                         help='Marathon http Port, default 8080')
+	mesos_start.add_argument('--port-service', dest='port_service', action='store', metavar='int', type=int,
+	                         help='Service Port, default 8080')
 	mesos_start.add_argument('--data', dest='data', action='store', metavar='path',
 	                         help='Data directory, default /var/lib/ignis/mesos')
 	mesos_start.add_argument('--docker', dest='docker_bin', action='store', metavar='path',
@@ -189,14 +192,15 @@ def cli():
 			zookeeper.destroy()
 	elif args.service == "mesos":
 		if args.action == "start":
-			mesos.start(bind=args.bind,
+			mesos.start(service=args.mesos_service,
+						bind=args.bind,
 			            quorum=args.quorum,
 			            name=args.name,
 			            zookeeper=args.zookeeper,
 			            resources=args.resources,
 			            port_master=args.port_master,
 			            port_agent=args.port_agent,
-			            port_marathon=args.port_marathon,
+			            port_service=args.port_service,
 			            data=args.data,
 			            docker_bin=args.docker_bin,
 			            default_registry=default_registry,
