@@ -150,7 +150,7 @@ def cli():
 		subparsers.choices[args.service].print_help()
 		sys.exit(0)
 
-	default_registry = registry.parse(args.registry if "registry" in args else "")
+	default_registry = registry.parse(args.registry if "registry" in args else None)
 
 	if args.service == "status":
 		print("Service Status:")

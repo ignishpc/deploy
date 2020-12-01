@@ -87,6 +87,7 @@ def destroy():
 
 def parse(r):
 	if r is None:
+		r = ""
 		client = docker.from_env()
 		container = utils.getContainer(client, CONTAINER_NAME)
 		if container:
