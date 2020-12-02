@@ -2,7 +2,7 @@ import os
 
 import docker
 
-import utils
+import ignis.deploy.utils as utils
 
 IMAGE_NAME = "registry:2.7.1"
 MODULE_NAME = "registry"
@@ -57,7 +57,8 @@ def start(bind, port, path, default, force):
 			ports=container_ports
 		)
 
-		print('info: add "{insecure-registries" : [ "'+bind + ":" + str(port)+'" ]} to /etc/docker/daemon.json and restart docker daemon service')
+		print('info: add "{insecure-registries" : [ "' + bind + ":" + str(
+			port) + '" ]} to /etc/docker/daemon.json and restart docker daemon service')
 		print("      use " + bind + ":" + str(port) + " to refer the registry")
 
 	except Exception as ex:

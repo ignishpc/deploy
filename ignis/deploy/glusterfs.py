@@ -1,9 +1,11 @@
 import docker
-import utils
+
+import ignis.deploy.utils as utils
 
 IMAGE_NAME = "ignishpc/glusterfs"
 MODULE_NAME = "glusterfs"
 CONTAINER_NAME = "ignis-glusterfs"
+
 
 def start():
 	pass

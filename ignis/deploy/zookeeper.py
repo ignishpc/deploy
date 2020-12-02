@@ -3,7 +3,8 @@ import shutil
 import time
 
 import docker
-import utils
+
+import ignis.deploy.utils as utils
 
 IMAGE_NAME = "ignishpc/zookeeper"
 MODULE_NAME = "zookeeper"

@@ -3,11 +3,11 @@
 import argparse
 import sys
 
-import glusterfs
-import mesos
-import registry
-import submitter
-import zookeeper
+import ignis.deploy.glusterfs as glusterfs
+import ignis.deploy.mesos as mesos
+import ignis.deploy.registry as registry
+import ignis.deploy.submitter as submitter
+import ignis.deploy.zookeeper as zookeeper
 
 
 def cli():
@@ -75,9 +75,10 @@ def cli():
 	subparsers_mesos = parser_mesos.add_subparsers(dest='action', help="Mesos service actions")
 
 	mesos_start = subparsers_mesos.add_parser("start", description='Start a Mesos service')
-	mesos_start.add_argument('-s','--service', dest='mesos_service', action='store', choices=["marathon", "singularity"],
+	mesos_start.add_argument('-s', '--service', dest='mesos_service', action='store',
+	                         choices=["marathon", "singularity"],
 	                         default="marathon",
-	                         help = 'Choose the service to run on mesos, default singularity')
+	                         help='Choose the service to run on mesos, default singularity')
 	mesos_start.add_argument('-b', '--bind', dest='bind', action='store', metavar='address',
 	                         help='The address that should be bound to for internal cluster communications, '
 	                              'default the first available private IPv4 address')
@@ -193,7 +194,7 @@ def cli():
 	elif args.service == "mesos":
 		if args.action == "start":
 			mesos.start(service=args.mesos_service,
-						bind=args.bind,
+			            bind=args.bind,
 			            quorum=args.quorum,
 			            name=args.name,
 			            zookeeper=args.zookeeper,

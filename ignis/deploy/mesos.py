@@ -3,7 +3,7 @@ import shutil
 
 import docker
 
-import utils
+import ignis.deploy.utils as utils
 
 MESOS_IMAGE_NAME = "ignishpc/mesos-base"
 MARATHON_IMAGE_NAME = "ignishpc/mesos-marathon"

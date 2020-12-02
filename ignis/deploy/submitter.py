@@ -1,5 +1,6 @@
 import docker
-import utils
+
+import ignis.deploy.utils as utils
 
 IMAGE_NAME = "ignishpc/submitter"
 MODULE_NAME = "submitter"
@@ -38,8 +39,17 @@ def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, default_
 		}
 
 		if dns:
-			mounts.append(docker.types.Mount(source="/etc/hosts", target="/etc/hosts", type="bind", read_only=True))
-			environment["IGNIS_SCHEDULER_DNS"] = "host"
+			import python_hosts
+			hosts = python_hosts.Hosts()
+			dns = list()
+			extra_hosts = dict()
+			for host in hosts.entries:
+				if host.entry_type == 'ipv4':
+					for name in host.names:
+						dns.append(name + ':' + host.address)
+						extra_hosts[name] = host.address
+
+			environment["IGNIS_SCHEDULER_DNS"] = ','.join(dns)
 
 		if default_registry:
 			environment["IGNIS_REGISTRY"] = default_registry
@@ -51,13 +61,14 @@ def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, default_
 		command = ["/opt/ignis/bin/ignis-sshd"]
 
 		container = client.containers.run(
-			image=default_registry+IMAGE_NAME,
+			image=default_registry + IMAGE_NAME,
 			name=CONTAINER_NAME,
 			detach=True,
 			environment=environment,
 			command=command,
 			mounts=mounts,
-			ports=container_ports
+			ports=container_ports,
+			extra_hosts=extra_hosts
 		)
 
 		container.exec_run(["bash", "-c", 'echo "root:' + password + '" | chpasswd'])
