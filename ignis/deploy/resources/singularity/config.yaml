@@ -37,7 +37,7 @@ zookeeper:
 
 logging:
   loggers:
-    "com.hubspot.singularity" : TRACE
+    "com.hubspot.singularity" : INFO
 
 enableCorsFilter: true
 sandboxDefaultsToTaskId: false
