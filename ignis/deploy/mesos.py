@@ -72,7 +72,7 @@ def start(service, bind, quorum, name, zookeeper, resources, port_master, port_a
 		if quorum is None:
 			image = MESOS_IMAGE_NAME
 			command = ["/bin/start-mesos.sh"]
-		if service == "marathon":
+		elif service == "marathon":
 			image = MARATHON_IMAGE_NAME
 			command = ["/bin/start-marathon.sh"]
 		else:
@@ -83,7 +83,7 @@ def start(service, bind, quorum, name, zookeeper, resources, port_master, port_a
 
 			vars = {
 				"PORT_SERVICE": environment["PORT_SERVICE"],
-				"MESOS_MASTER": bind,
+				"MESOS_MASTER": environment["MESOS_HOSTNAME"] + ':' + environment["PORT_MASTER"],
 				"ZOOKEEPER": zookeeper.replace("zk://", ""),
 				"BIND": bind
 			}

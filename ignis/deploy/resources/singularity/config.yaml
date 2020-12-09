@@ -1,7 +1,7 @@
 
 server:
   type: simple
-  applicationContextPath: /singularity
+  applicationContextPath: /
   connector:
     type: http
     port: ${PORT_SERVICE}
@@ -44,4 +44,4 @@ sandboxDefaultsToTaskId: false
 
 ui:
   title: Singularity (ignis)
-  baseUrl: http://${BIND}:${PORT_SERVICE}/singularity
+  baseUrl: http://${BIND}:${PORT_SERVICE}
