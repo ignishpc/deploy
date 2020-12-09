@@ -41,6 +41,7 @@ logging:
 
 enableCorsFilter: true
 sandboxDefaultsToTaskId: false
+hostname: ${BIND}
 
 ui:
   title: Singularity (ignis)
