@@ -50,7 +50,6 @@ def start(service, bind, quorum, name, zookeeper, resources, port_master, port_a
 		mounts = [
 			docker.types.Mount(source=data, target="/var/lib/mesos", type="bind"),
 			docker.types.Mount(source="/var/run/docker.sock", target="/var/run/docker.sock", type="bind"),
-			docker.types.Mount(source="/cgroup", target="/cgroup", type="bind"),
 			docker.types.Mount(source="/sys", target="/sys", type="bind"),
 			docker.types.Mount(source=docker_bin, target="/usr/bin/docker", type="bind"),
 		]
