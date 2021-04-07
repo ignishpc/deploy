@@ -1,3 +1,5 @@
+import os
+
 import docker
 
 import ignis.deploy.utils as utils
@@ -37,6 +39,10 @@ def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, default_
 			"IGNIS_SCHEDULER_TYPE": scheduler,
 			"IGNIS_SCHEDULER_URL": shceduler_url,
 		}
+
+		tz = _timezone()
+		if tz is not None:
+			environment["TZ"] = tz
 
 		if dns:
 			import python_hosts
@@ -96,3 +102,30 @@ def stop():
 def destroy():
 	client = docker.from_env()
 	utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.remove(force=True))
+
+
+def _timezone():
+	if "TZ" in os.environ:
+		return os.getenv("TZ")
+
+	if os.path.exists("/etc/timezone"):
+		with open("/etc/timezone") as file:
+			return file.readline().rstrip()
+
+	try:
+		from tzlocal import get_localzone
+		return get_localzone().zone
+	except Exception:
+		pass
+
+	try:
+		from subprocess import run, PIPE
+		timeinfo = run(["timedatectl", "status"], stdout=PIPE).stdout.decode("utf-8")
+		key = "Time zone:"
+		i = timeinfo.index(key) + len(key) + 1
+		j = timeinfo.index(" ", i)
+		return timeinfo[i:j]
+	except Exception:
+		pass
+
+	return None
