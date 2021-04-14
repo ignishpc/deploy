@@ -8,24 +8,24 @@ CONTAINER_NAME = "ignis-glusterfs"
 
 
 def start():
-	pass
+    raise NotImplementedError("glusterfs not implemented")
 
 
 def status():
-	client = docker.from_env()
-	return utils.getStatus(client, CONTAINER_NAME)
+    client = docker.from_env()
+    return utils.getStatus(client, CONTAINER_NAME)
 
 
 def resume():
-	client = docker.from_env()
-	utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.start())
+    client = docker.from_env()
+    utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.start())
 
 
 def stop():
-	client = docker.from_env()
-	utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.stop())
+    client = docker.from_env()
+    utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.stop())
 
 
 def destroy():
-	client = docker.from_env()
-	utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.remove(force=True))
+    client = docker.from_env()
+    utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.remove(force=True))

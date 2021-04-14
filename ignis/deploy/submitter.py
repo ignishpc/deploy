@@ -1,4 +1,5 @@
 import os
+import sys
 
 import docker
 
@@ -10,122 +11,124 @@ CONTAINER_NAME = "ignis-submitter"
 
 
 def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, default_registry, force):
-	try:
-		client = docker.from_env()
-		container = utils.getContainer(client, CONTAINER_NAME)
-		if container:
-			if force:
-				container.remove(force=True)
-			else:
-				print("error: " + CONTAINER_NAME + " already exists")
-				exit(-1)
+    try:
+        client = docker.from_env()
+        container = utils.getContainer(client, CONTAINER_NAME)
+        if container:
+            if force:
+                container.remove(force=True)
+            else:
+                print("error: " + CONTAINER_NAME + " already exists")
+                exit(-1)
 
-		if port is None:
-			port = 2222
+        if port is None:
+            port = 2222
 
-		if password is None:
-			password = "ignis"
+        if password is None:
+            password = "ignis"
 
-		if dfs_home is None:
-			dfs_home = "/media/dfs"
+        if dfs_home is None:
+            dfs_home = "/media/dfs"
 
-		mounts = [
-			docker.types.Mount(source=dfs, target="/media/dfs", type="bind"),
-		]
+        mounts = [
+            docker.types.Mount(source=dfs, target="/media/dfs", type="bind"),
+        ]
 
-		environment = {
-			"IGNIS_DFS_ID": dfs,
-			"IGNIS_DFS_HOME": dfs_home,
-			"IGNIS_SCHEDULER_TYPE": scheduler,
-			"IGNIS_SCHEDULER_URL": shceduler_url,
-		}
+        environment = {
+            "IGNIS_DFS_ID": dfs,
+            "IGNIS_DFS_HOME": dfs_home,
+            "IGNIS_SCHEDULER_TYPE": scheduler,
+            "IGNIS_SCHEDULER_URL": shceduler_url,
+        }
 
-		tz = _timezone()
-		if tz is not None:
-			environment["TZ"] = tz
+        tz = _timezone()
+        if tz is not None:
+            environment["TZ"] = tz
 
-		if dns:
-			import python_hosts
-			hosts = python_hosts.Hosts()
-			dns = list()
-			extra_hosts = dict()
-			for host in hosts.entries:
-				if host.entry_type == 'ipv4':
-					for name in host.names:
-						dns.append(name + ':' + host.address)
-						extra_hosts[name] = host.address
+        if dns:
+            import python_hosts
+            hosts = python_hosts.Hosts()
+            dns = list()
+            extra_hosts = dict()
+            for host in hosts.entries:
+                if host.entry_type == 'ipv4':
+                    for name in host.names:
+                        dns.append(name + ':' + host.address)
+                        extra_hosts[name] = host.address
 
-			environment["IGNIS_SCHEDULER_DNS"] = ','.join(dns)
+            environment["IGNIS_SCHEDULER_DNS"] = ','.join(dns)
 
-		if default_registry:
-			environment["IGNIS_REGISTRY"] = default_registry
+        if default_registry:
+            environment["IGNIS_REGISTRY"] = default_registry
 
-		container_ports = {
-			"22": str(port)
-		}
+        container_ports = {
+            "22": str(port)
+        }
 
-		command = ["/opt/ignis/bin/ignis-sshd"]
+        command = ["/opt/ignis/bin/ignis-sshd"]
 
-		container = client.containers.run(
-			image=default_registry + IMAGE_NAME,
-			name=CONTAINER_NAME,
-			detach=True,
-			environment=environment,
-			command=command,
-			mounts=mounts,
-			ports=container_ports,
-			extra_hosts=extra_hosts
-		)
+        container = client.containers.run(
+            image=default_registry + IMAGE_NAME,
+            name=CONTAINER_NAME,
+            detach=True,
+            environment=environment,
+            command=command,
+            mounts=mounts,
+            ports=container_ports,
+            extra_hosts=extra_hosts
+        )
 
-		container.exec_run(["bash", "-c", 'echo "root:' + password + '" | chpasswd'])
-
-	except Exception as ex:
-		print("error:  " + str(ex))
-		exit(-1)
+        container.exec_run(["bash", "-c", 'echo "root:' + password + '" | chpasswd'])
+    except PermissionError:
+        print("root required!!", file=sys.stderr)
+        sys.exit(-1)
+    except Exception as ex:
+        print("error:  " + str(ex), file=sys.stderr)
+        exit(-1)
 
 
 def status():
-	client = docker.from_env()
-	return utils.getStatus(client, CONTAINER_NAME)
+    client = docker.from_env()
+    return utils.getStatus(client, CONTAINER_NAME)
 
 
 def resume():
-	client = docker.from_env()
-	utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.start())
+    client = docker.from_env()
+    utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.start())
 
 
 def stop():
-	client = docker.from_env()
-	utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.stop())
+    client = docker.from_env()
+    utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.stop())
 
 
 def destroy():
-	client = docker.from_env()
-	utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.remove(force=True))
+    client = docker.from_env()
+    utils.containerAction(client, CONTAINER_NAME, MODULE_NAME, lambda container: container.remove(force=True))
 
 
 def _timezone():
-	if "TZ" in os.environ:
-		return os.getenv("TZ")
+    if "TZ" in os.environ:
+        return os.getenv("TZ")
 
-	if os.path.exists("/etc/timezone"):
-		with open("/etc/timezone") as file:
-			return file.readline().rstrip()
+    if os.path.exists("/etc/timezone"):
+        with open("/etc/timezone") as file:
+            return file.readline().rstrip()
 
-	try:
-		from tzlocal import get_localzone
-		return get_localzone().zone
-	except Exception:
-		pass
+    try:
+        from tzlocal import get_localzone
+        return get_localzone().zone
+    except Exception:
+        pass
 
-	try:
-		from subprocess import run, PIPE
-		timeinfo = run(["timedatectl", "status"], stdout=PIPE).stdout.decode("utf-8")
-		key = "Time zone:"
-		i = timeinfo.index(key) + len(key) + 1
-		j = timeinfo.index(" ", i)
-		return timeinfo[i:j]
-	except Exception:
-		pass
+    try:
+        from subprocess import run, PIPE
+        timeinfo = run(["timedatectl", "status"], stdout=PIPE).stdout.decode("utf-8")
+        key = "Time zone:"
+        i = timeinfo.index(key) + len(key) + 1
+        j = timeinfo.index(" ", i)
+        return timeinfo[i:j]
+    except Exception:
+        pass
 
-	return None
+    return None

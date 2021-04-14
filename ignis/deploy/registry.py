@@ -1,4 +1,4 @@
-import os
+import sys
 
 import docker
 
@@ -11,7 +11,7 @@ DEFAULT = "IGNIS_REGISTRY_DEFAULT"
 URL = "IGNIS_REGISTRY"
 
 
-def start(bind, port, path, default, force):
+def start(bind, port, path, default, clear, force):
 	try:
 		client = docker.from_env()
 		container = utils.getContainer(client, CONTAINER_NAME)
@@ -32,8 +32,9 @@ def start(bind, port, path, default, force):
 		if path is None:
 			path = "/var/lib/ignis/registry"
 
-		if not os.path.exists(path):
-			os.makedirs(path)
+		if clear:
+			utils.rmIfExists(path)
+		utils.mkdirIfNotExists(path)
 
 		mounts = [
 			docker.types.Mount(source=path, target="/var/lib/registry", type="bind"),
@@ -48,10 +49,15 @@ def start(bind, port, path, default, force):
 			"5000": str(port)
 		}
 
+		environment = {
+			"REGISTRY_STORAGE_DELETE_ENABLED": "true"
+		}
+
 		container = client.containers.run(
 			image=IMAGE_NAME,
 			name=CONTAINER_NAME,
 			detach=True,
+			environment=environment,
 			labels=labels,
 			mounts=mounts,
 			ports=container_ports
@@ -61,8 +67,28 @@ def start(bind, port, path, default, force):
 			port) + '" ]}\' to /etc/docker/daemon.json and restart docker daemon service')
 		print("      use " + bind + ":" + str(port) + " to refer the registry")
 
+	except PermissionError:
+		print("root required!!", file=sys.stderr)
+		sys.exit(-1)
 	except Exception as ex:
-		print("error:  " + str(ex))
+		print("error:  " + str(ex), file=sys.stderr)
+		exit(-1)
+
+
+def garbage():
+	try:
+		client = docker.from_env()
+		container = utils.getContainer(client, CONTAINER_NAME)
+		if not container:
+			print(CONTAINER_NAME + " is not RUNNING", file=sys.stderr)
+			exit(-1)
+		container.exec_run(["bin/registry", "garbage-collect" "/etc/docker/registry/config.yml"])
+
+	except PermissionError:
+		print("root required!!", file=sys.stderr)
+		sys.exit(-1)
+	except Exception as ex:
+		print("error:  " + str(ex), file=sys.stderr)
 		exit(-1)
 
 
