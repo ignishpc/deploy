@@ -74,20 +74,21 @@ def start(bind, id, partner, password, ports, logs, conf, data, default_registry
 
         if logs is None:
             logs = CONTAINER_LOG
-        utils.mkdirIfNotExists(logs)
 
         if conf is None:
             conf = CONTAINER_CONF
-        utils.mkdirIfNotExists(conf)
 
         if data is None:
             data = CONTAINER_DATA
-        utils.mkdirIfNotExists(data)
 
         if clear:
             utils.rmIfExists(logs)
             utils.rmIfExists(conf)
             utils.rmIfExists(data)
+
+        utils.mkdirIfNotExists(logs)
+        utils.mkdirIfNotExists(conf)
+        utils.mkdirIfNotExists(data)
 
         zookeeper_res = os.path.join(RESOURCES, "zookeeper")
         with open(os.path.join(zookeeper_res, 'myid'), 'w') as f:
