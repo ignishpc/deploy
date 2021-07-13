@@ -9,6 +9,7 @@ import ignis.deploy.registry as registry
 import ignis.deploy.registry_ui as registry_ui
 import ignis.deploy.submitter as submitter
 import ignis.deploy.zookeeper as zookeeper
+import ignis.deploy.images as images
 
 
 def cli():
@@ -32,7 +33,7 @@ def cli():
     rty_start.add_argument('--path', dest='path', action='store', metavar='str',
                            help='File System path to store the registry contents, default /var/lib/ignis/registry')
     rty_start.add_argument('-c', '--clear', dest='clear', action='store_true',
-                              help='Clear all previous images')
+                           help='Clear all previous images')
     rty_start.add_argument('-f', '--force', dest='force', action='store_true',
                            help='Destroy the image registry if exists')
 
@@ -170,6 +171,42 @@ def cli():
     submitter_resume = subparsers_submitter.add_parser("resume", description='Resume the Ignis submitter service')
     submitter_destroy = subparsers_submitter.add_parser("destroy", description='Destroy the Ignis submitter service')
 
+    # Images
+    parser_submitter = subparsers.add_parser("images", description='Ignis images manager')
+    subparsers_images = parser_submitter.add_subparsers(dest='action', help="Ignis images actions")
+
+    images_clear = subparsers_images.add_parser("clear", description='Delete all Ignis images')
+    images_clear.add_argument('--version', dest='version', action='store', metavar='str',
+                              help='Delete only a selected version')
+    images_clear.add_argument('--default-registry', dest='registry', action='store', metavar='url',
+                              help='Docker image registry')
+
+    images_push = subparsers_images.add_parser("push", description='Push all Ignis images')
+    images_push.add_argument('--version', dest='version', action='store', metavar='str',
+                             help='Push only a selected version')
+    images_push.add_argument('--default-registry', dest='registry', action='store', metavar='url',
+                             help='Docker image registry')
+
+    images_build = subparsers_images.add_parser("build", description='Build Ignis images')
+    images_build.add_argument('--sources', dest='sources', action='store', metavar='url', nargs="*",
+                              help='URL core repositories(git)', default=[])
+    images_build.add_argument('--local-sources', dest='local_sources', action='store', metavar='path', nargs="*",
+                              help='Path core folders', default=[])
+    images_build.add_argument('--version-filter', dest='version_filters', action='append', metavar=('name', 'version'),
+                              nargs=2, help='Path core folders', default=[])
+    images_build.add_argument('--full', dest='full', action='store_true',
+                              help='Create a full image with all cores', default=False)
+    images_build.add_argument('--bases', dest='bases', action='store_true',
+                              help='Create common base images with driver and executor installed', default=False)
+    images_build.add_argument('--logs', dest='logs', action='store_true',
+                              help='Always create log', default=False)
+    images_build.add_argument('--version', dest='version', action='store', metavar='str',
+                              help='Default build version')
+    images_build.add_argument('--custom-image', dest='custom_images', action='append', metavar=('name', 'cores'),
+                              nargs="+", help='Path core folders', default=[])
+    images_build.add_argument('--default-registry', dest='registry', action='store', metavar='url',
+                              help='Docker image registry')
+
     args = parser.parse_args(['-h'] if len(sys.argv) == 1 else None)
 
     if "action" in args and not args.action:
@@ -205,9 +242,9 @@ def cli():
     elif args.service == "registry-ui":
         if args.action == "start":
             registry_ui.start(bind=args.bind,
-                           port=args.port,
-                           registry=default_registry,
-                           force=args.force)
+                              port=args.port,
+                              registry=default_registry,
+                              force=args.force)
         elif args.action == "stop":
             registry.stop()
         elif args.action == "resume":
@@ -282,7 +319,24 @@ def cli():
             glusterfs.resume()
         elif args.action == "destroy":
             glusterfs.destroy()
-
+    elif args.service == "images":
+        if args.action == "clear":
+            images.clear(version=args.version,
+                         force=args.force,
+                         default_registry=default_registry)
+        elif args.action == "push":
+            images.push(version=args.version,
+                        default_registry=default_registry)
+        elif args.action == "build":
+            images.build(sources=args.sources,
+                             local_sources=args.local_sources,
+                             version_filters=args.version_filters,
+                             custom_images=args.custom_images,
+                             bases=args.bases,
+                             full=args.full,
+                             save_logs = args.logs,
+                             version=args.version,
+                             default_registry=default_registry)
 
 if __name__ == "__main__":
     cli()
