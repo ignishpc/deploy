@@ -16,8 +16,8 @@ SINGULARITY_CONF = "/etc/ignis/singularity/"
 RESOURCES = os.path.join(os.path.dirname(os.path.realpath(__file__)), "resources")
 
 
-def start(service, bind, quorum, name, zookeeper, resources, port_master, port_agent, port_service, data, docker_bin,
-          default_registry, clear, force):
+def start(service, bind, quorum, name, zookeeper, resources, port_master, port_agent, port_service, no_agent, data,
+          docker_bin, default_registry, clear, force):
     try:
         client = docker.from_env()
         container = utils.getContainer(client, CONTAINER_NAME)
@@ -72,6 +72,8 @@ def start(service, bind, quorum, name, zookeeper, resources, port_master, port_a
         elif service == "marathon":
             image = MARATHON_IMAGE_NAME
             command = ["/bin/start-marathon.sh"]
+            if clear:
+                environment["MARATHON_CLEAR"] = "1"
         else:
             image = SINGULARITY_IMAGE_NAME
             command = ["/bin/start-singularity.sh"]

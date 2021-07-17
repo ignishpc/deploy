@@ -120,6 +120,8 @@ def cli():
                              help='Mesos agent Port, default 5051')
     mesos_start.add_argument('--port-service', dest='port_service', action='store', metavar='int', type=int,
                              help='Service Port, default 8080')
+    mesos_start.add_argument('--no-agent', dest='no_agent', action='store_true',
+                             help='Agent will not be launched ')
     mesos_start.add_argument('--data', dest='data', action='store', metavar='path',
                              help='Data directory, default /var/lib/ignis/mesos')
     mesos_start.add_argument('--docker', dest='docker_bin', action='store', metavar='path',
@@ -178,12 +180,22 @@ def cli():
     images_clear = subparsers_images.add_parser("clear", description='Delete all Ignis images')
     images_clear.add_argument('--version', dest='version', action='store', metavar='str',
                               help='Delete only a selected version')
+    images_clear.add_argument('--whitelist', dest='whitelist', action='append', metavar='image',
+                              nargs="+", help='Only clears images in the white list', default=[])
+    images_clear.add_argument('--blacklist', dest='blacklist', action='append', metavar='image',
+                              nargs="+", help='Ignore images(including whitelist) in the black list', default=[])
+    rty_start.add_argument('-f', '--force', dest='force', action='store_true',
+                           help='Force image deletion')
     images_clear.add_argument('--default-registry', dest='registry', action='store', metavar='url',
                               help='Docker image registry')
 
     images_push = subparsers_images.add_parser("push", description='Push all Ignis images')
     images_push.add_argument('--version', dest='version', action='store', metavar='str',
                              help='Push only a selected version')
+    images_push.add_argument('--whitelist', dest='whitelist', action='append', metavar='image',
+                              nargs="+", help='Only pushes images in the white list', default=[])
+    images_push.add_argument('--blacklist', dest='blacklist', action='append', metavar='image',
+                              nargs="+", help='Ignore images(including whitelist) in the black list', default=[])
     images_push.add_argument('--default-registry', dest='registry', action='store', metavar='url',
                              help='Docker image registry')
 
@@ -281,6 +293,7 @@ def cli():
                         port_master=args.port_master,
                         port_agent=args.port_agent,
                         port_service=args.port_service,
+                        no_agent=args.no_agent,
                         data=args.data,
                         docker_bin=args.docker_bin,
                         default_registry=default_registry,
@@ -322,10 +335,14 @@ def cli():
     elif args.service == "images":
         if args.action == "clear":
             images.clear(version=args.version,
+                         whitelist=args.blacklist,
+                         blacklist=args.blacklist,
                          force=args.force,
                          default_registry=default_registry)
         elif args.action == "push":
             images.push(version=args.version,
+                         whitelist=args.blacklist,
+                         blacklist=args.blacklist,
                         default_registry=default_registry)
         elif args.action == "build":
             images.build(sources=args.sources,
