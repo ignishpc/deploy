@@ -178,13 +178,20 @@ def cli():
     subparsers_images = parser_submitter.add_subparsers(dest='action', help="Ignis images actions")
 
     images_clear = subparsers_images.add_parser("clear", description='Delete all Ignis images')
+    images_clear.add_argument('-y', dest='yes', action='store_True', default=False,
+                              help='Assume yes in clear confirmation')
     images_clear.add_argument('--version', dest='version', action='store', metavar='str',
                               help='Delete only a selected version')
     images_clear.add_argument('--whitelist', dest='whitelist', action='append', metavar='image',
                               nargs="+", help='Only clears images in the white list', default=[])
     images_clear.add_argument('--blacklist', dest='blacklist', action='append', metavar='image',
                               nargs="+", help='Ignore images(including whitelist) in the black list', default=[])
-    rty_start.add_argument('-f', '--force', dest='force', action='store_true',
+    class NegateAction(argparse.Action):
+        def __call__(self, parser, ns, values, option):
+            setattr(ns, self.dest, option[2:4] != 'no')
+    images_clear.add_argument('--none', '--no-none', dest='add_none', action=NegateAction, nargs=0, default=False,
+                              help='Add or ignore images with <none> tag, default(--no-none)')
+    images_clear.add_argument('-f', '--force', dest='force', action='store_true',
                            help='Force image deletion')
     images_clear.add_argument('--default-registry', dest='registry', action='store', metavar='url',
                               help='Docker image registry')
@@ -334,9 +341,11 @@ def cli():
             glusterfs.destroy()
     elif args.service == "images":
         if args.action == "clear":
-            images.clear(version=args.version,
+            images.clear(yes=args.yes,
+                         version=args.version,
                          whitelist=args.blacklist,
                          blacklist=args.blacklist,
+                         add_none=args.add_none,
                          force=args.force,
                          default_registry=default_registry)
         elif args.action == "push":
