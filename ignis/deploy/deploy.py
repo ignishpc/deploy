@@ -4,12 +4,12 @@ import argparse
 import sys
 
 import ignis.deploy.glusterfs as glusterfs
+import ignis.deploy.images as images
 import ignis.deploy.mesos as mesos
 import ignis.deploy.registry as registry
 import ignis.deploy.registry_ui as registry_ui
 import ignis.deploy.submitter as submitter
 import ignis.deploy.zookeeper as zookeeper
-import ignis.deploy.images as images
 
 
 def cli():
@@ -178,7 +178,7 @@ def cli():
     subparsers_images = parser_submitter.add_subparsers(dest='action', help="Ignis images actions")
 
     images_clear = subparsers_images.add_parser("clear", description='Delete all Ignis images')
-    images_clear.add_argument('-y', dest='yes', action='store_True', default=False,
+    images_clear.add_argument('-y', dest='yes', action='store_true', default=False,
                               help='Assume yes in clear confirmation')
     images_clear.add_argument('--version', dest='version', action='store', metavar='str',
                               help='Delete only a selected version')
@@ -186,13 +186,15 @@ def cli():
                               nargs="+", help='Only clears images in the white list', default=[])
     images_clear.add_argument('--blacklist', dest='blacklist', action='append', metavar='image',
                               nargs="+", help='Ignore images(including whitelist) in the black list', default=[])
+
     class NegateAction(argparse.Action):
         def __call__(self, parser, ns, values, option):
             setattr(ns, self.dest, option[2:4] != 'no')
+
     images_clear.add_argument('--none', '--no-none', dest='add_none', action=NegateAction, nargs=0, default=False,
                               help='Add or ignore images with <none> tag, default(--no-none)')
     images_clear.add_argument('-f', '--force', dest='force', action='store_true',
-                           help='Force image deletion')
+                              help='Force image deletion')
     images_clear.add_argument('--default-registry', dest='registry', action='store', metavar='url',
                               help='Docker image registry')
 
@@ -200,9 +202,9 @@ def cli():
     images_push.add_argument('--version', dest='version', action='store', metavar='str',
                              help='Push only a selected version')
     images_push.add_argument('--whitelist', dest='whitelist', action='append', metavar='image',
-                              nargs="+", help='Only pushes images in the white list', default=[])
+                             nargs="+", help='Only pushes images in the white list', default=[])
     images_push.add_argument('--blacklist', dest='blacklist', action='append', metavar='image',
-                              nargs="+", help='Ignore images(including whitelist) in the black list', default=[])
+                             nargs="+", help='Ignore images(including whitelist) in the black list', default=[])
     images_push.add_argument('--default-registry', dest='registry', action='store', metavar='url',
                              help='Docker image registry')
 
@@ -221,6 +223,8 @@ def cli():
                               help='Always create log', default=False)
     images_build.add_argument('--version', dest='version', action='store', metavar='str',
                               help='Default build version')
+    images_build.add_argument('--version-tags', dest='version_tags', metavar="str",
+                              nargs="*", help='Additional version tags', default=[])
     images_build.add_argument('--custom-image', dest='custom_images', action='append', metavar=('name', 'cores'),
                               nargs="+", help='Path core folders', default=[])
     images_build.add_argument('--default-registry', dest='registry', action='store', metavar='url',
@@ -350,19 +354,21 @@ def cli():
                          default_registry=default_registry)
         elif args.action == "push":
             images.push(version=args.version,
-                         whitelist=args.blacklist,
-                         blacklist=args.blacklist,
+                        whitelist=args.blacklist,
+                        blacklist=args.blacklist,
                         default_registry=default_registry)
         elif args.action == "build":
             images.build(sources=args.sources,
-                             local_sources=args.local_sources,
-                             version_filters=args.version_filters,
-                             custom_images=args.custom_images,
-                             bases=args.bases,
-                             full=args.full,
-                             save_logs = args.logs,
-                             version=args.version,
-                             default_registry=default_registry)
+                         local_sources=args.local_sources,
+                         version_filters=args.version_filters,
+                         custom_images=args.custom_images,
+                         bases=args.bases,
+                         full=args.full,
+                         save_logs=args.logs,
+                         version_tags=args.version_tags,
+                         version=args.version,
+                         default_registry=default_registry)
+
 
 if __name__ == "__main__":
     cli()
