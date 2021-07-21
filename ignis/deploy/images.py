@@ -23,12 +23,12 @@ def clear(yes, version, whitelist, blacklist, add_none, force, default_registry)
         for img in filtered_images:
             tags = ', '.join(img.attrs['RepoTags']) if img.attrs['RepoTags'] else "<none>"
             print("  ", img.id[7:19], "    ", tags)
-        option = yes
-        if not option:
+        if not yes:
             option = input("Are you sure (yes/no): ")
             while option not in ["yes", "no"]:
                 option = input("Please type yes/no: ")
-        if option == "yes":
+            yes = option == "yes"
+        if yes:
             for img in filtered_images:
                 try:
                     client.images.remove(image=img.id, force=force)
@@ -52,12 +52,12 @@ def push(yes, version, whitelist, blacklist, default_registry):
         for img in filtered_images:
             for tag in img.attrs['RepoTags']:
                 print("  ", tag)
-        option = yes
-        if not option:
+        if not yes:
             option = input("Are you sure (yes/no): ")
             while option not in ["yes", "no"]:
                 option = input("Please type yes/no: ")
-        if option == "yes":
+            yes = option == "yes"
+        if yes:
             for img in filtered_images:
                 client = docker.from_env()
                 for tag in img.attrs['RepoTags']:
@@ -249,7 +249,8 @@ def __filter(images, whitelist, blacklist, add_none, default_registry):
         tags = tags2
 
     for img in blacklist:
-        del tags[img]
+        if img in tags:
+            del tags[img]
 
     return list(set(list(tags.values()) + tags_none))
 
@@ -268,7 +269,10 @@ def __getImages(client, version, default_registry, none=False):
         while len(root_nones) > 0:
             none = root_nones.pop()
             nones.append(none)
-            parent = layer_map[none.attrs['Parent']]
+            parent_id = none.attrs['Parent']
+            if not parent_id:
+                continue
+            parent = layer_map[parent_id]
             if len(parent.attrs['RepoTags']) == 0:
                 root_nones.append(parent)
 
@@ -378,6 +382,7 @@ def __createDockerfile(wd, id, cores, version, default_registry, order=100):
         ARG REGISTRY=""
         ARG TAG=""
         FROM ${REGISTRY}ignishpc/common${TAG}
+        ARG RELPATH=""
         """)
         for core in cores:
             builder = default_registry + "ignishpc/" + core + "-builder:" + version
