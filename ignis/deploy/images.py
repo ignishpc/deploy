@@ -15,20 +15,14 @@ import git
 def clear(yes, version, whitelist, blacklist, add_none, force, default_registry):
     try:
         client = docker.from_env()
-        images = __getImages(client, version, default_registry)
+        images = __getImages(client, version, default_registry, none=add_none)
         filtered_images = __filter(images, whitelist, blacklist, add_none, default_registry)
+        filtered_images.sort(key=__getDate, reverse=True)
 
-        def asDate(img):
-            sdate = img.attrs['Created']
-            if re.match('.+\\.\\d{9}Z$', sdate):
-                sdate = sdate[0:-4] + 'Z'
-            return datetime.datetime.strptime(sdate, '%Y-%m-%dT%H:%M:%S.%fZ')
-
-        filtered_images.sort(key=asDate)
-
-        print("Following images will be clear")
+        print("Following images will be cleared:")
         for img in filtered_images:
-            print(img.id, "    ", img.attrs['RepoTags'])
+            tags = ', '.join(img.attrs['RepoTags']) if img.attrs['RepoTags'] else "<none>"
+            print("  ", img.id[7:19], "    ", tags)
         option = yes
         if not option:
             option = input("Are you sure (yes/no): ")
@@ -36,7 +30,10 @@ def clear(yes, version, whitelist, blacklist, add_none, force, default_registry)
                 option = input("Please type yes/no: ")
         if option == "yes":
             for img in filtered_images:
-                client.images.remove(image=img.id, force=force)
+                try:
+                    client.images.remove(image=img.id, force=force)
+                except docker.errors.APIError as ex:
+                    print(img.id[7:19], "can't be removed:", ex.explanation)
         else:
             print("Aborted")
     except Exception as ex:
@@ -44,14 +41,28 @@ def clear(yes, version, whitelist, blacklist, add_none, force, default_registry)
         exit(-1)
 
 
-def push(version, whitelist, blacklist, default_registry):
+def push(yes, version, whitelist, blacklist, default_registry):
     try:
         client = docker.from_env()
         images = __getImages(client, version, default_registry)
         filtered_images = __filter(images, whitelist, blacklist, False, default_registry)
+        filtered_images.sort(key=__getDate)
 
-        with ThreadPoolExecutor() as executor:
-            executor.map(lambda img: docker.from_env().images.push(img.id), filtered_images)
+        print("Following images will be pushed:")
+        for img in filtered_images:
+            for tag in img.attrs['RepoTags']:
+                print("  ", tag)
+        option = yes
+        if not option:
+            option = input("Are you sure (yes/no): ")
+            while option not in ["yes", "no"]:
+                option = input("Please type yes/no: ")
+        if option == "yes":
+            for img in filtered_images:
+                client = docker.from_env()
+                for tag in img.attrs['RepoTags']:
+                    client.images.push(tag)
+                    print(tag, "PUSHED")
 
     except Exception as ex:
         print("error:  " + str(ex), file=sys.stderr)
@@ -225,12 +236,12 @@ def __filter(images, whitelist, blacklist, add_none, default_registry):
             tags_none.append(img)
         for tag in tag_list:
             if tag.startswith(default_registry):
-                name = tag[0:len(default_registry)].split(':')[0]
+                name = tag[len(default_registry):-1].split(':')[0]
                 if name.startswith(prefix):
-                    name = name[0:len(prefix)]
+                    name = name[len(prefix):-1]
                     tags[name] = img
 
-    if whitelist:
+    if whitelist is not None:
         tags2 = dict()
         for img in whitelist:
             if img in tags:
@@ -243,11 +254,33 @@ def __filter(images, whitelist, blacklist, add_none, default_registry):
     return list(set(list(tags.values()) + tags_none))
 
 
-def __getImages(client, version, default_registry):
-    if version is None:
-        return client.images.list(name=default_registry, filters={"label": ["ignis"]})
-    else:
-        return client.images.list(name=default_registry, filters={"label": ["ignis=" + version]})
+def __getImages(client, version, default_registry, none=False):
+    labels = ["ignis"] if version is None else ["ignis=" + version]
+    imgs = client.images.list(name=default_registry + "ignishpc/*", filters={"label": labels})
+    if none:
+        imgs2 = client.images.list(filters={"label": labels})
+        root_nones = list(filter(lambda img: len(img.attrs['RepoTags']) == 0, imgs2))
+        layers = client.images.list(filters={"label": labels}, all=True)
+        layer_map = dict()
+        for layer in layers:
+            layer_map[layer.id] = layer
+        nones = list()
+        while len(root_nones) > 0:
+            none = root_nones.pop()
+            nones.append(none)
+            parent = layer_map[none.attrs['Parent']]
+            if len(parent.attrs['RepoTags']) == 0:
+                root_nones.append(parent)
+
+        imgs += nones
+    return imgs
+
+
+def __getDate(img):
+    sdate = img.attrs['Created']
+    nano = sdate.split(".")[-1]
+    sdate = sdate[0:-len(nano)] + nano[0:6] + 'Z'
+    return datetime.datetime.strptime(sdate, '%Y-%m-%dT%H:%M:%S.%fZ')
 
 
 def __is_git(path):

@@ -182,14 +182,14 @@ def cli():
                               help='Assume yes in clear confirmation')
     images_clear.add_argument('--version', dest='version', action='store', metavar='str',
                               help='Delete only a selected version')
-    images_clear.add_argument('--whitelist', dest='whitelist', action='append', metavar='image',
-                              nargs="+", help='Only clears images in the white list', default=[])
-    images_clear.add_argument('--blacklist', dest='blacklist', action='append', metavar='image',
+    images_clear.add_argument('--whitelist', dest='whitelist', metavar='image',
+                              nargs="*", help='Only clears images in the white list', default=None)
+    images_clear.add_argument('--blacklist', dest='blacklist', metavar='image',
                               nargs="+", help='Ignore images(including whitelist) in the black list', default=[])
 
     class NegateAction(argparse.Action):
         def __call__(self, parser, ns, values, option):
-            setattr(ns, self.dest, option[2:4] != 'no')
+            setattr(ns, self.dest, option[0:5] != '--no-')
 
     images_clear.add_argument('--none', '--no-none', dest='add_none', action=NegateAction, nargs=0, default=False,
                               help='Add or ignore images with <none> tag, default(--no-none)')
@@ -199,11 +199,13 @@ def cli():
                               help='Docker image registry')
 
     images_push = subparsers_images.add_parser("push", description='Push all Ignis images')
+    images_push.add_argument('-y', dest='yes', action='store_true', default=False,
+                              help='Assume yes in push confirmation')
     images_push.add_argument('--version', dest='version', action='store', metavar='str',
                              help='Push only a selected version')
-    images_push.add_argument('--whitelist', dest='whitelist', action='append', metavar='image',
-                             nargs="+", help='Only pushes images in the white list', default=[])
-    images_push.add_argument('--blacklist', dest='blacklist', action='append', metavar='image',
+    images_push.add_argument('--whitelist', dest='whitelist', metavar='image',
+                             nargs="+", help='Only pushes images in the white list', default=None)
+    images_push.add_argument('--blacklist', dest='blacklist', metavar='image',
                              nargs="+", help='Ignore images(including whitelist) in the black list', default=[])
     images_push.add_argument('--default-registry', dest='registry', action='store', metavar='url',
                              help='Docker image registry')
@@ -347,14 +349,15 @@ def cli():
         if args.action == "clear":
             images.clear(yes=args.yes,
                          version=args.version,
-                         whitelist=args.blacklist,
+                         whitelist=args.whitelist,
                          blacklist=args.blacklist,
                          add_none=args.add_none,
                          force=args.force,
                          default_registry=default_registry)
         elif args.action == "push":
-            images.push(version=args.version,
-                        whitelist=args.blacklist,
+            images.push(yes=args.yes,
+                        version=args.version,
+                        whitelist=args.whitelist,
                         blacklist=args.blacklist,
                         default_registry=default_registry)
         elif args.action == "build":
@@ -371,4 +374,8 @@ def cli():
 
 
 if __name__ == "__main__":
-    cli()
+    try:
+        cli()
+    except KeyboardInterrupt as ex:
+        print("Aborted")
+        exit(-1)
