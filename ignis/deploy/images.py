@@ -340,12 +340,14 @@ def __docker_build(name, path, dockerfile, log, version, default_registry):
             }
         )
     except docker.errors.BuildError as ex:
+        imageObj = None
         buildlog = ex.build_log
         manifest_error = re.compile(".*manifest for (.*) not found.*")
         result = manifest_error.search(ex.msg)
         if result:
             error = RuntimeError(result.group(1) + " required, use --sources or --local-source to add Dockerfile")
     except Exception as ex:
+        imageObj = None
         buildlog = []
         error = ex
 
