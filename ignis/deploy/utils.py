@@ -58,7 +58,11 @@ def decode(bs):
 
 
 def sha1base64(s):
-    return base64.b64encode(hashlib.sha1(encode(s)).digest())
+    return decode(base64.b64encode(hashlib.sha1(encode(s)).digest()))
+
+
+def sha256base64(s):
+    return decode(base64.b64encode(hashlib.sha256(encode(s)).digest()))
 
 
 def mkdirIfNotExists(path):

@@ -42,7 +42,7 @@ def start(bind, id, partner, password, ports, logs, conf, data, default_registry
         if password is None:
             password = utils.randomPassword()
 
-        zk_token = "super:" + utils.decode(utils.sha1base64("super:" + password))
+        zk_token = "super:" + utils.sha1base64("super:" + password)
 
         if ports is None:
             ports = [

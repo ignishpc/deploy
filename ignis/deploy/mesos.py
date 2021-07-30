@@ -55,10 +55,11 @@ def start(service, bind, quorum, name, zookeeper, resources, port_master, port_a
         environment = {
             "MESOS_HOSTNAME": bind,
             "PORT_MASTER": str(port_master if port_master else 5050),
-            "PORT_AGENT": str(port_agent if port_agent else 5051),
             "PORT_SERVICE": str(port_service if port_service else 8080),
             "ZOOKEEPER": zookeeper
         }
+        if not no_agent:
+            environment["PORT_AGENT"] = str(port_agent if port_agent else 5051)
         if quorum is not None:
             environment["MESOS_QUORUM"] = str(quorum)
         if name is not None:

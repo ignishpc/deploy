@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-import ignis.deploy.glusterfs as glusterfs
+import ignis.deploy.nomad as nomad
 import ignis.deploy.images as images
 import ignis.deploy.mesos as mesos
 import ignis.deploy.registry as registry
@@ -58,6 +58,43 @@ def cli():
     rty_ui_stop = subparsers_rty_ui.add_parser("stop", description='Stop the registry-ui service')
     rty_ui_resume = subparsers_rty_ui.add_parser("resume", description='Resume the registry-ui service')
     rty_ui_destroy = subparsers_rty_ui.add_parser("destroy", description='Destroy the registry-ui service')
+
+    # Nomad parser
+    parser_nomad = subparsers.add_parser("nomad", description='Nomad cluster')
+    subparsers_nomad = parser_nomad.add_subparsers(dest='action', help="Nomad service actions")
+
+    nomad_start = subparsers_nomad.add_parser("start", description='Start a Nomad service')
+    nomad_start.add_argument('-b', '--bind', dest='bind', action='store', metavar='address',
+                             help='The address that should be bound to for internal cluster communications, '
+                                  'default the first available private IPv4 address')
+    nomad_start.add_argument('--join', dest='partner', action='store', metavar='address',
+                             help='Join to a existing nomad cluster')
+    nomad_start.add_argument('-p', '--ports', dest='ports', nargs=3, metavar='int', type=int,
+                             help='Ports used by (http, rpc, Serf), default 4646 4647 4648')
+    nomad_start.add_argument('--password', dest='password', action='store', metavar='str',
+                             help='Password to generate a gossip encryption key, default random')
+    nomad_start.add_argument('--config', dest='config', action='store', metavar='file',
+                             help='Load a custom json config file')
+    nomad_start.add_argument('--name', dest='name', action='store', metavar='str',
+                             help='Nomad node name (default bind hostname)')
+    nomad_start.add_argument('--data', dest='data', action='store', metavar='path',
+                             help='Data directory, default /var/lib/ignis/nomad')
+    nomad_start.add_argument('--no-client', dest='no_client', action='store_true',
+                             help='Client will not be launched ')
+    nomad_start.add_argument('--no-server', dest='no_server', action='store_true',
+                             help='Serve will not be launched ')
+    nomad_start.add_argument('--docker', dest='docker_bin', action='store', metavar='path',
+                             help='Docker binary, default /usr/bin/docker')
+    nomad_start.add_argument('-f', '--force', dest='force', action='store_true',
+                             help='Destroy nomad if exists')
+    nomad_start.add_argument('-c', '--clear', dest='clear', action='store_true',
+                             help='Clear all previous data')
+    nomad_start.add_argument('--default-registry', dest='registry', action='store', metavar='url',
+                             help='Docker image registry to pull image')
+
+    nomad_stop = subparsers_nomad.add_parser("stop", description='Stop the Nomad service')
+    nomad_resume = subparsers_nomad.add_parser("resume", description='Resume the Nomad service')
+    nomad_destroy = subparsers_nomad.add_parser("destroy", description='Destroy the Nomad service')
 
     # Zookeper parser
     parser_zk = subparsers.add_parser("zookeeper", description='Zookeeper cluster')
@@ -137,16 +174,6 @@ def cli():
     mesos_resume = subparsers_mesos.add_parser("resume", description='Resume the Mesos service')
     mesos_destroy = subparsers_mesos.add_parser("destroy", description='Destroy the Mesos service')
 
-    # GlusterFS parser
-    parser_glusterfs = subparsers.add_parser("glusterfs", description='Distributed file system (DFS) Glusterfs service')
-    subparsers_glusterfs = parser_glusterfs.add_subparsers(dest='action', help="Glusterfs service actions")
-
-    glusterfs_start = subparsers_glusterfs.add_parser("start", description='Start a Glusterfs service')
-
-    glusterfs_stop = subparsers_glusterfs.add_parser("stop", description='Stop the Glusterfs service')
-    glusterfs_resume = subparsers_glusterfs.add_parser("resume", description='Resume the Glusterfs service')
-    glusterfs_destroy = subparsers_glusterfs.add_parser("destroy", description='Destroy the Glusterfs service')
-
     # Submitter parser
     parser_submitter = subparsers.add_parser("submitter", description='Ignis applications submitter')
     subparsers_submitter = parser_submitter.add_subparsers(dest='action', help="Ignis submitter service actions")
@@ -215,6 +242,8 @@ def cli():
                               help='URL core repositories(git)', default=[])
     images_build.add_argument('--local-sources', dest='local_sources', action='store', metavar='path', nargs="*",
                               help='Path core folders', default=[])
+    images_build.add_argument('--ignore', dest='ignore_folders', action='store', metavar='folder', nargs="*",
+                              help='Ignore folders in list', default=[])
     images_build.add_argument('--version-filter', dest='version_filters', action='append', metavar=('name', 'version'),
                               nargs=2, help='Path core folders', default=[])
     images_build.add_argument('--full', dest='full', action='store_true',
@@ -244,11 +273,11 @@ def cli():
         print("Service Status:")
         print("    Registry  " + registry.status())
         print(" Registry-ui  " + registry_ui.status())
+        print("       Nomad  " + nomad.status())
         print("   Zookeeper  " + zookeeper.status())
         print("       Mesos  " + mesos.status())
         print("   Submitter  " + submitter.status())
-        print("   Glusterfs  " + glusterfs.status())
-    elif args.service == "registry":
+    elif args.service == registry.MODULE_NAME:
         if args.action == "start":
             registry.start(bind=args.bind,
                            port=args.port,
@@ -264,7 +293,7 @@ def cli():
             registry.resume()
         elif args.action == "destroy":
             registry.destroy()
-    elif args.service == "registry-ui":
+    elif args.service == registry_ui.MODULE_NAME:
         if args.action == "start":
             registry_ui.start(bind=args.bind,
                               port=args.port,
@@ -276,7 +305,28 @@ def cli():
             registry.resume()
         elif args.action == "destroy":
             registry.destroy()
-    elif args.service == "zookeeper":
+    elif args.service == nomad.MODULE_NAME:
+        if args.action == "start":
+            nomad.start(bind=args.bind,
+                        partner=args.partner,
+                        ports=args.ports,
+                        password=args.password,
+                        config_file=args.config,
+                        name=args.name,
+                        data=args.data,
+                        no_client=args.no_client,
+                        no_server=args.no_server,
+                        docker_bin=args.docker_bin,
+                        default_registry=default_registry,
+                        force=args.force,
+                        clear=args.clear)
+        elif args.action == "stop":
+            nomad.stop()
+        elif args.action == "resume":
+            nomad.resume()
+        elif args.action == "destroy":
+            nomad.destroy()
+    elif args.service == zookeeper.MODULE_NAME:
         if args.action == "start":
             zookeeper.start(bind=args.bind,
                             id=args.id,
@@ -295,7 +345,7 @@ def cli():
             zookeeper.resume()
         elif args.action == "destroy":
             zookeeper.destroy()
-    elif args.service == "mesos":
+    elif args.service == mesos.MODULE_NAME:
         if args.action == "start":
             mesos.start(service=args.mesos_service,
                         bind=args.bind,
@@ -319,7 +369,7 @@ def cli():
             mesos.resume()
         elif args.action == "destroy":
             mesos.destroy()
-    elif args.service == "submitter":
+    elif args.service == submitter.MODULE_NAME:
         if args.action == "start":
             submitter.start(port=args.port,
                             dfs=args.dfs,
@@ -336,16 +386,7 @@ def cli():
             submitter.resume()
         elif args.action == "destroy":
             submitter.destroy()
-    elif args.service == "glusterfs":
-        if args.action == "start":
-            glusterfs.start()
-        elif args.action == "stop":
-            glusterfs.stop()
-        elif args.action == "resume":
-            glusterfs.resume()
-        elif args.action == "destroy":
-            glusterfs.destroy()
-    elif args.service == "images":
+    elif args.service == images.MODULE_NAME:
         if args.action == "clear":
             images.clear(yes=args.yes,
                          version=args.version,
@@ -363,6 +404,7 @@ def cli():
         elif args.action == "build":
             images.build(sources=args.sources,
                          local_sources=args.local_sources,
+                         ignore_folders=args.ignore_folders,
                          version_filters=args.version_filters,
                          custom_images=args.custom_images,
                          bases=args.bases,
@@ -373,9 +415,13 @@ def cli():
                          default_registry=default_registry)
 
 
-if __name__ == "__main__":
+def main():
     try:
         cli()
     except KeyboardInterrupt as ex:
-        print("Aborted")
+        print("\nAborted")
         exit(-1)
+
+
+if __name__ == "__main__":
+    main()

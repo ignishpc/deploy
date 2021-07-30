@@ -11,6 +11,8 @@ import docker
 import docker.errors
 import git
 
+MODULE_NAME = "images"
+
 
 def clear(yes, version, whitelist, blacklist, add_none, force, default_registry):
     try:
@@ -20,9 +22,13 @@ def clear(yes, version, whitelist, blacklist, add_none, force, default_registry)
         filtered_images.sort(key=__getDate, reverse=True)
 
         print("Following images will be cleared:")
+        print("REPOSITORY                              IMAGE ID       TAGS")
         for img in filtered_images:
+            repoDigests = img.attrs["RepoDigests"]
+            repo = repoDigests[0].split('@')[0] if repoDigests else "<none>"
+            id = img.id[7:19]
             tags = ', '.join(img.attrs['RepoTags']) if img.attrs['RepoTags'] else "<none>"
-            print("  ", img.id[7:19], "    ", tags)
+            print(repo, max(0, 38 - len(repo)) * " ", id, " ", tags)
         if not yes:
             option = input("Are you sure (yes/no): ")
             while option not in ["yes", "no"]:
@@ -69,8 +75,8 @@ def push(yes, version, whitelist, blacklist, default_registry):
         exit(-1)
 
 
-def build(sources, local_sources, version_filters, custom_images, bases, full, save_logs, version_tags, version,
-          default_registry):
+def build(sources, local_sources, ignore_folders, version_filters, custom_images, bases, full, save_logs, version_tags,
+          version, default_registry):
     try:
         with tempfile.TemporaryDirectory(prefix="ignis") as wd:
             core_list = list()
@@ -85,7 +91,7 @@ def build(sources, local_sources, version_filters, custom_images, bases, full, s
                 if not os.path.exists(dockerfiles):
                     print("warn: " + folder + " ignored, Dockerfiles folder not found")
                     return
-                subfolders = os.listdir(dockerfiles)
+                subfolders = list(filter(lambda name: name not in ignore_folders, os.listdir(dockerfiles)))
                 for core in subfolders:
                     core_folder = os.path.join(wd, core)
                     if core == subfolders[-1] and not local:
@@ -342,6 +348,7 @@ def __docker_build(name, path, dockerfile, log, version, default_registry):
     except docker.errors.BuildError as ex:
         imageObj = None
         buildlog = ex.build_log
+        error = ex
         manifest_error = re.compile(".*manifest for (.*) not found.*")
         result = manifest_error.search(ex.msg)
         if result:
