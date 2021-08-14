@@ -139,7 +139,7 @@ def cli():
     mesos_start.add_argument('-s', '--service', dest='mesos_service', action='store',
                              choices=["marathon", "singularity"],
                              default="marathon",
-                             help='Choose the service to run on mesos, default singularity')
+                             help='Choose the service to run on mesos, default marathon')
     mesos_start.add_argument('-b', '--bind', dest='bind', action='store', metavar='address',
                              help='The address that should be bound to for internal cluster communications, '
                                   'default the first available private IPv4 address')

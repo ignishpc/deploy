@@ -37,6 +37,7 @@ def start(service, bind, quorum, name, zookeeper, resources, port_master, port_a
 
         if data is None:
             data = CONTAINER_DATA
+        data = os.path.normpath(data)
         if clear:
             utils.rmIfExists(data)
 
@@ -46,7 +47,7 @@ def start(service, bind, quorum, name, zookeeper, resources, port_master, port_a
             docker_bin = "/usr/bin/docker"
 
         mounts = [
-            docker.types.Mount(source=data, target="/var/lib/mesos", type="bind"),
+            docker.types.Mount(source=data, target=data, type="bind"),
             docker.types.Mount(source="/var/run/docker.sock", target="/var/run/docker.sock", type="bind"),
             docker.types.Mount(source="/sys", target="/sys", type="bind"),
             docker.types.Mount(source=docker_bin, target="/usr/bin/docker", type="bind"),
@@ -54,6 +55,7 @@ def start(service, bind, quorum, name, zookeeper, resources, port_master, port_a
 
         environment = {
             "MESOS_HOSTNAME": bind,
+            "MESOS_WD": data,
             "PORT_MASTER": str(port_master if port_master else 5050),
             "PORT_SERVICE": str(port_service if port_service else 8080),
             "ZOOKEEPER": zookeeper
