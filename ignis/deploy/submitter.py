@@ -10,7 +10,7 @@ MODULE_NAME = "submitter"
 CONTAINER_NAME = "ignis-submitter"
 
 
-def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, default_registry, force):
+def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, envs, mounts, default_registry, force):
     try:
         client = docker.from_env()
         container = utils.getContainer(client, CONTAINER_NAME)
@@ -30,9 +30,14 @@ def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, default_
         if dfs_home is None:
             dfs_home = "/media/dfs"
 
-        mounts = [
+        mounts_list = [
             docker.types.Mount(source=dfs, target="/media/dfs", type="bind"),
         ]
+
+        for mount in mounts:
+            source = mount[0].split(":")[0]
+            ro = source[0].endswith(":ro")
+            mounts_list.append(docker.types.Mount(source=source, target=mount[1], type="bind", read_only=ro))
 
         environment = {
             "IGNIS_DFS_ID": dfs,
@@ -40,6 +45,9 @@ def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, default_
             "IGNIS_SCHEDULER_TYPE": scheduler,
             "IGNIS_SCHEDULER_URL": shceduler_url,
         }
+
+        for env in envs:
+            environment[env[0]] = env[1]
 
         tz = _timezone()
         if tz is not None:
@@ -73,7 +81,7 @@ def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, default_
             detach=True,
             environment=environment,
             command=command,
-            mounts=mounts,
+            mounts=mounts_list,
             ports=container_ports,
             extra_hosts=extra_hosts
         )

@@ -1,8 +1,8 @@
-import sys
-import os
 import json
+import os
+import sys
+
 import docker
-import base64
 
 import ignis.deploy.utils as utils
 
@@ -12,8 +12,8 @@ CONTAINER_NAME = "ignis-nomad"
 CONTAINER_DATA = "/var/lib/ignis/nomad/"
 
 
-def start(bind, partner, ports, password, config_file, name, data, no_client, no_server, docker_bin, default_registry,
-          force, clear):
+def start(bind, partner, ports, password, config_file, name, data, no_client, no_server, docker_bin, volumes,
+          default_registry, force, clear):
     try:
         if config_file is None:
             config = dict()
@@ -46,6 +46,7 @@ def start(bind, partner, ports, password, config_file, name, data, no_client, no
 
         if data is None:
             data = CONTAINER_DATA
+        data = os.path.normpath(data)
         if clear:
             utils.rmIfExists(data)
 
@@ -55,7 +56,7 @@ def start(bind, partner, ports, password, config_file, name, data, no_client, no
             docker_bin = "/usr/bin/docker"
 
         mounts = [
-            docker.types.Mount(source=data, target="/var/lib/nomad", type="bind"),
+            docker.types.Mount(source=data, target=data, type="bind", propagation="rshared"),
             docker.types.Mount(source="/var/run/docker.sock", target="/var/run/docker.sock", type="bind"),
             docker.types.Mount(source="/tmp", target="/tmp", type="bind"),
             docker.types.Mount(source=docker_bin, target="/usr/bin/docker", type="bind"),
@@ -73,12 +74,22 @@ def start(bind, partner, ports, password, config_file, name, data, no_client, no
             "rpc": bind + (":" + str(ports[1]) if ports else ""),
             "serf": bind + (":" + str(ports[1]) if ports else "")
         }
-        rconfig["data_dir"] = "/var/lib/nomad"
+        rconfig["data_dir"] = data
         rconfig["datacenter"] = "ignis"
         rconfig["server"]["enabled"] = not no_server
         rconfig["server"]["encrypt"] = utils.sha256base64(password)
         rconfig["client"]["enabled"] = not no_client
         rconfig["client"]["servers"] = [rconfig["advertise"]["http"]]
+
+        for volume in volumes:
+            path = volume.split(":")[0];
+            ro = volume.endswith(":ro")
+
+            rconfig["client"]["host_volume"][path] = {
+                "path": path,
+                "read_only": ro
+            }
+            mounts.append(docker.types.Mount(source=path, target=path, type="bind", read_only=ro))
 
         if partner:
             rconfig["client"]["servers"].append(partner)
@@ -86,9 +97,10 @@ def start(bind, partner, ports, password, config_file, name, data, no_client, no
         elif "bootstrap_expect" not in config["server"]:
             rconfig["server"]["bootstrap_expect"] = 1
 
-        with open(os.path.join(data, "config.json"), "w") as file:
+        file_config = os.path.join(data, "config.json")
+        with open(file_config, "w") as file:
             json.dump(config, file, indent=4, sort_keys=True)
-        command = ["nomad", "agent", "-config", "/var/lib/nomad/config.json"]
+        command = ["nomad", "agent", "-config", file_config]
 
         container = client.containers.run(
             image=default_registry + IMAGE_NAME,

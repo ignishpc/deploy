@@ -3,9 +3,9 @@
 import argparse
 import sys
 
-import ignis.deploy.nomad as nomad
 import ignis.deploy.images as images
 import ignis.deploy.mesos as mesos
+import ignis.deploy.nomad as nomad
 import ignis.deploy.registry as registry
 import ignis.deploy.registry_ui as registry_ui
 import ignis.deploy.submitter as submitter
@@ -85,6 +85,8 @@ def cli():
                              help='Serve will not be launched ')
     nomad_start.add_argument('--docker', dest='docker_bin', action='store', metavar='path',
                              help='Docker binary, default /usr/bin/docker')
+    nomad_start.add_argument('--volumes', dest='volumes', metavar='path',
+                             nargs="*", help='Allow mount host path as volume', default=[])
     nomad_start.add_argument('-f', '--force', dest='force', action='store_true',
                              help='Destroy nomad if exists')
     nomad_start.add_argument('-c', '--clear', dest='clear', action='store_true',
@@ -191,6 +193,11 @@ def cli():
                                  help='Enable host dns names')
     submitter_start.add_argument('--port', dest='port', action='store', metavar='int', type=int,
                                  help='SSH server Port, default 2222')
+    submitter_start.add_argument('--env', dest='envs', action='append', metavar=('key', 'value'),
+                                 nargs="+", help='Create environment variable inside submit', default=[])
+    submitter_start.add_argument('--mount', dest='mounts', action='append', metavar=('host', 'container'), nargs="+"
+                                 , help='Create environment variable inside submit. Use <host>:ro to read only',
+                                 default=[])
     submitter_start.add_argument('-f', '--force', dest='force', action='store_true',
                                  help='Destroy the submitter if exists')
     submitter_start.add_argument('--default-registry', dest='registry', action='store', metavar='url',
@@ -227,7 +234,7 @@ def cli():
 
     images_push = subparsers_images.add_parser("push", description='Push all Ignis images')
     images_push.add_argument('-y', dest='yes', action='store_true', default=False,
-                              help='Assume yes in push confirmation')
+                             help='Assume yes in push confirmation')
     images_push.add_argument('--version', dest='version', action='store', metavar='str',
                              help='Push only a selected version')
     images_push.add_argument('--whitelist', dest='whitelist', metavar='image',
@@ -317,6 +324,7 @@ def cli():
                         no_client=args.no_client,
                         no_server=args.no_server,
                         docker_bin=args.docker_bin,
+                        volumes=args.volumes,
                         default_registry=default_registry,
                         force=args.force,
                         clear=args.clear)
@@ -378,6 +386,8 @@ def cli():
                             scheduler=args.scheduler[0],
                             shceduler_url=args.scheduler[1],
                             dns=args.dns,
+                            envs=args.envs,
+                            mounts=args.mounts,
                             default_registry=default_registry,
                             force=args.force)
         elif args.action == "stop":
