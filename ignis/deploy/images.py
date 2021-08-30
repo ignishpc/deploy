@@ -47,12 +47,22 @@ def clear(yes, version, whitelist, blacklist, add_none, force, default_registry)
         exit(-1)
 
 
-def push(yes, version, whitelist, blacklist, default_registry):
+def push(yes, builders, version, whitelist, blacklist, default_registry):
     try:
         client = docker.from_env()
         images = __getImages(client, version, default_registry)
         filtered_images = __filter(images, whitelist, blacklist, False, default_registry)
         filtered_images.sort(key=__getDate)
+        if not builders:
+            builder = re.compile(".*\/.*-?builder(:.+)?")
+
+            def isBuilder(img):
+                for tag in img.attrs['RepoTags']:
+                    if builder.match(tag):
+                        return False
+                return True
+
+            filtered_images = list(filter(isBuilder, filtered_images))
 
         print("Following images will be pushed:")
         for img in filtered_images:
@@ -86,13 +96,16 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
 
             tmp = os.path.join(wd, "tmp")
 
-            def prepare_sources(folder, local):
+            def prepare_sources(folder, local, duplicates):
                 dockerfiles = os.path.join(folder, "Dockerfiles")
                 if not os.path.exists(dockerfiles):
                     print("warn: " + folder + " ignored, Dockerfiles folder not found")
                     return
                 subfolders = list(filter(lambda name: name not in ignore_folders, os.listdir(dockerfiles)))
                 for core in subfolders:
+                    if core in duplicates:
+                        raise RuntimeError(core + " is already defined")
+                    duplicates.add(core)
                     core_folder = os.path.join(wd, core)
                     if core == subfolders[-1] and not local:
                         os.rename(folder, core_folder)
@@ -104,12 +117,13 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
                     core_list.append((core_folder, v))
 
             print("Sources:")
+            duplicates = set()
             for src in sources:
                 git.Repo.clone_from(src, tmp)
-                prepare_sources(tmp, False)
+                prepare_sources(tmp, False, duplicates)
 
             for src in local_sources:
-                prepare_sources(src, True)
+                prepare_sources(src, True, duplicates)
 
             print("Dockerfiles:")
             build_list = list()

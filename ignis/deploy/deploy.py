@@ -235,6 +235,8 @@ def cli():
     images_push = subparsers_images.add_parser("push", description='Push all Ignis images')
     images_push.add_argument('-y', dest='yes', action='store_true', default=False,
                              help='Assume yes in push confirmation')
+    images_push.add_argument('--builders', dest='builders', action='store_true', default=False,
+                             help='Push builders to the repository, default false')
     images_push.add_argument('--version', dest='version', action='store', metavar='str',
                              help='Push only a selected version')
     images_push.add_argument('--whitelist', dest='whitelist', metavar='image',
@@ -407,6 +409,7 @@ def cli():
                          default_registry=default_registry)
         elif args.action == "push":
             images.push(yes=args.yes,
+                        builders=args.builders,
                         version=args.version,
                         whitelist=args.whitelist,
                         blacklist=args.blacklist,
