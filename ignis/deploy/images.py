@@ -290,7 +290,7 @@ def __getImages(client, version, default_registry, none=False):
             none = root_nones.pop()
             nones.append(none)
             parent_id = none.attrs['Parent']
-            if not parent_id:
+            if not parent_id and parent_id in layer_map:
                 continue
             parent = layer_map[parent_id]
             if len(parent.attrs['RepoTags']) == 0:
