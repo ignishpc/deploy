@@ -113,6 +113,9 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
                         shutil.copytree(folder, core_folder)
 
                     v = __setVersion(core, core_folder, version_map.get(core, version), version is None)
+                    git_folder = os.path.join(core_folder, ".git")
+                    if os.path.exists(git_folder):
+                        shutil.rmtree(git_folder, ignore_errors=True)
                     print("  " + core + ":" + v)
                     core_list.append((core_folder, v))
 
