@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='ignishpc',
-    version='2.0',
+    version='2.0.1',
     author="cesarpomar",
     author_email="cesaralfredo.pineiro@usc.es",
     description='Ignis deploy script',
