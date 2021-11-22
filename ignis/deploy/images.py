@@ -9,7 +9,13 @@ from distutils.version import StrictVersion
 
 import docker
 import docker.errors
-import git
+
+try:
+    import git
+
+    GIT_ERROR = None
+except Exception as ex:
+    GIT_ERROR = ex
 
 MODULE_NAME = "images"
 
@@ -112,7 +118,7 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
                     else:
                         shutil.copytree(folder, core_folder)
 
-                    v = __setVersion(core, core_folder, version_map.get(core, version), version is None)
+                    v = __setVersion(core, core_folder, version_map.get(core, version))
                     git_folder = os.path.join(core_folder, ".git")
                     if os.path.exists(git_folder):
                         shutil.rmtree(git_folder, ignore_errors=True)
@@ -121,6 +127,8 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
 
             print("Sources:")
             duplicates = set()
+            if len(sources) > 0 and GIT_ERROR is not None:
+                raise GIT_ERROR
             for src in sources:
                 git.Repo.clone_from(src, tmp)
                 prepare_sources(tmp, False, duplicates)
@@ -311,6 +319,8 @@ def __getDate(img):
 
 
 def __is_git(path):
+    if GIT_ERROR is not None:
+        return False
     try:
         _ = git.Repo(path).git_dir
         return True
@@ -326,11 +336,10 @@ def __find(path, name):
     return result
 
 
-def __setVersion(name, path, version, strict):
+def __setVersion(name, path, version):
     if version is None:
         return "latest"
-    if __is_git(path) and not strict:
-        print("warn: " + name + " version " + version + " ignored because is not a git repository")
+    if not __is_git(path):
         return version
     repo = git.Repo(path)
     tags = sorted(repo.tags, key=StrictVersion)
