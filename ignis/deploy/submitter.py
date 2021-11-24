@@ -31,7 +31,7 @@ def start(port, dfs, dfs_home, password, scheduler, shceduler_url, dns, envs, mo
             dfs_home = "/media/dfs"
 
         mounts_list = [
-            docker.types.Mount(source=dfs, target="/media/dfs", type="bind"),
+            docker.types.Mount(source=dfs, target=dfs_home, type="bind"),
         ]
 
         for mount in mounts:
