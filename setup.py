@@ -1,17 +1,16 @@
 import setuptools
 
-with open("README.md", "r") as fh:
+with open("README.rst", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name='ignishpc',
-    version='2.0.1',
+    version='2.0.3',
     author="cesarpomar",
     author_email="cesaralfredo.pineiro@usc.es",
-    description='Ignis deploy script',
+    description='IgnisHPC Deploy',
     long_description=long_description,
-    long_description_content_type="text/markdown",
-    url="https://gitlab.com/ignis-hpc/deploy",
+    url="https://github.com/ignis-hpc/deploy",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
