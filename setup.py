@@ -5,12 +5,12 @@ with open("README.rst", "r") as fh:
 
 setuptools.setup(
     name='ignishpc',
-    version='2.0.3',
+    version='2.0.3.post1',
     author="cesarpomar",
     author_email="cesaralfredo.pineiro@usc.es",
     description='IgnisHPC Deploy',
     long_description=long_description,
-    url="https://github.com/ignis-hpc/deploy",
+    url="https://github.com/ignishpc/deploy",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
