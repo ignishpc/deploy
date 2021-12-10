@@ -4,68 +4,57 @@ import docker
 
 import ignis.deploy.utils as utils
 
-IMAGE_NAME = "joxit/docker-registry-ui:1.5-static"
+IMAGE_NAME = "joxit/docker-registry-ui:2.1.0"
 MODULE_NAME = "registry-ui"
 CONTAINER_NAME = "ignis-registry-ui"
 
 
-def start(bind, port, registry, force):
-	try:
-		client = docker.from_env()
-		container = utils.getContainer(client, CONTAINER_NAME)
-		if container:
-			if force:
-				container.remove(force=True)
-			else:
-				print("error: " + CONTAINER_NAME + " already exists")
-				exit(-1)
-
-		if bind is None:
-			bind = utils.getHostname()
-			print("info: " + bind + " selected for internal cluster communications, use --bind to select another")
-
-		if port is None:
-			port = 3000
-
-		container_ports = {
-			"80": str(port)
-		}
-
-		if registry.startswith("http"):
-			import urllib.parse
-			parsed = urllib.parse.urlparse(registry)
-			host_port = parsed.netloc.split(":")
-			host_port[0] = utils.getIpAddress(host_port[0])
-			parsed = parsed._replace(netloc=':'.join(host_port))
-			url = urllib.parse.urlunparse(parsed)
+def start(port, registry, force):
+	client = docker.from_env()
+	container = utils.getContainer(client, CONTAINER_NAME)
+	if container:
+		if force:
+			container.remove(force=True)
 		else:
-			host_port = registry.split(":")
-			host_port[0] = utils.getIpAddress(host_port[0])
-			url = "http://" + ':'.join(host_port)
+			print("error: " + CONTAINER_NAME + " already exists")
+			exit(-1)
 
-		if url.endswith("/"):
-			url = url[:-1]
+	if port is None:
+		port = 3000
 
-		environment = {
-			"REGISTRY_URL": url,
-			"DELETE_IMAGES": "true",
-			"REGISTRY_TITLE": "Ignis"
-		}
+	container_ports = {
+		"80": str(port)
+	}
 
-		container = client.containers.run(
-			image=IMAGE_NAME,
-			name=CONTAINER_NAME,
-			detach=True,
-			environment=environment,
-			ports=container_ports
-		)
+	if registry.startswith("http"):
+		import urllib.parse
+		parsed = urllib.parse.urlparse(registry)
+		host_port = parsed.netloc.split(":")
+		host_port[0] = utils.getIpAddress(host_port[0])
+		parsed = parsed._replace(netloc=':'.join(host_port))
+		url = urllib.parse.urlunparse(parsed)
+	else:
+		host_port = registry.split(":")
+		host_port[0] = utils.getIpAddress(host_port[0])
+		url = "http://" + ':'.join(host_port)
 
-	except PermissionError:
-		print("root required!!", file=sys.stderr)
-		sys.exit(-1)
-	except Exception as ex:
-		print("error:  " + str(ex))
-		exit(-1)
+	if url.endswith("/"):
+		url = url[:-1]
+
+	environment = {
+		"SINGLE_REGISTRY": "true",
+		"NGINX_PROXY_PASS_URL": url,
+		"DELETE_IMAGES": "true",
+		"REGISTRY_TITLE": "Ignis"
+	}
+
+	container = client.containers.run(
+		image=IMAGE_NAME,
+		name=CONTAINER_NAME,
+		detach=True,
+		environment=environment,
+		ports=container_ports
+	)
 
 
 def status():

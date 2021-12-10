@@ -12,67 +12,59 @@ URL = "IGNIS_REGISTRY"
 
 
 def start(bind, port, path, default, clear, force):
-	try:
-		client = docker.from_env()
-		container = utils.getContainer(client, CONTAINER_NAME)
-		if container:
-			if force:
-				container.remove(force=True)
-			else:
-				print("error: " + CONTAINER_NAME + " already exists")
-				exit(-1)
+	client = docker.from_env()
+	container = utils.getContainer(client, CONTAINER_NAME)
+	if container:
+		if force:
+			container.remove(force=True)
+		else:
+			print("error: " + CONTAINER_NAME + " already exists")
+			exit(-1)
 
-		if bind is None:
-			bind = utils.getHostname()
-			print("info: " + bind + " selected for internal cluster communications, use --bind to select another")
+	if bind is None:
+		bind = utils.getHostname()
+		print("info: " + bind + " selected for internal cluster communications, use --bind to select another")
 
-		if port is None:
-			port = 5000
+	if port is None:
+		port = 5000
 
-		if path is None:
-			path = "/var/lib/ignis/registry"
+	if path is None:
+		path = "/var/lib/ignis/registry"
 
-		if clear:
-			utils.rmIfExists(path)
-		utils.mkdirIfNotExists(path)
+	if clear:
+		utils.rmIfExists(path)
+	utils.mkdirIfNotExists(path)
 
-		mounts = [
-			docker.types.Mount(source=path, target="/var/lib/registry", type="bind"),
-		]
+	mounts = [
+		docker.types.Mount(source=path, target="/var/lib/registry", type="bind"),
+	]
 
-		labels = {
-			URL: bind + ":" + str(port),
-			DEFAULT: str(default),
-		}
+	labels = {
+		URL: bind + ":" + str(port),
+		DEFAULT: str(default),
+	}
 
-		container_ports = {
-			"5000": str(port)
-		}
+	container_ports = {
+		"5000": str(port)
+	}
 
-		environment = {
-			"REGISTRY_STORAGE_DELETE_ENABLED": "true"
-		}
+	environment = {
+		"REGISTRY_STORAGE_DELETE_ENABLED": "true"
+	}
 
-		container = client.containers.run(
-			image=IMAGE_NAME,
-			name=CONTAINER_NAME,
-			detach=True,
-			environment=environment,
-			labels=labels,
-			mounts=mounts,
-			ports=container_ports
-		)
+	container = client.containers.run(
+		image=IMAGE_NAME,
+		name=CONTAINER_NAME,
+		detach=True,
+		environment=environment,
+		labels=labels,
+		mounts=mounts,
+		ports=container_ports
+	)
 
-		print('info: add \'{insecure-registries" : [ "' + bind + ":" + str(
-			port) + '" ]}\' to /etc/docker/daemon.json and restart docker daemon service')
-		print("      use " + bind + ":" + str(port) + " to refer the registry")
-
-	except PermissionError:
-		print("root required!!", file=sys.stderr)
-		sys.exit(-1)
-	except Exception as ex:
-		print("error:  " + str(ex), file=sys.stderr)
-		exit(-1)
+	print('info: add \'{insecure-registries" : [ "' + bind + ":" + str(
+		port) + '" ]}\' to /etc/docker/daemon.json and restart docker daemon service')
+	print("      use " + bind + ":" + str(port) + " to refer the registry")
 
 
 def garbage():

@@ -20,278 +20,254 @@ except Exception as ex:
 MODULE_NAME = "images"
 
 
-def clear(yes, version, whitelist, blacklist, add_none, force, default_registry):
-    try:
-        client = docker.from_env()
-        images = __getImages(client, version, default_registry, none=add_none)
-        filtered_images = __filter(images, whitelist, blacklist, add_none, default_registry)
-        filtered_images.sort(key=__getDate, reverse=True)
+def clear(yes, version, whitelist, blacklist, add_none, force, default_registry, namespace):
+    client = docker.from_env()
+    images = __getImages(client, version, default_registry, namespace, whitelist, blacklist, none=add_none)
+    images.sort(key=lambda x: x[2], reverse=True)
 
-        print("Following images will be cleared:")
-        print("REPOSITORY                              IMAGE ID       TAGS")
-        for img in filtered_images:
-            repoDigests = img.attrs["RepoDigests"]
-            repo = repoDigests[0].split('@')[0] if repoDigests else "<none>"
-            id = img.id[7:19]
-            tags = ', '.join(img.attrs['RepoTags']) if img.attrs['RepoTags'] else "<none>"
-            print(repo, max(0, 38 - len(repo)) * " ", id, " ", tags)
-        if not yes:
-            option = input("Are you sure (yes/no): ")
-            while option not in ["yes", "no"]:
-                option = input("Please type yes/no: ")
-            yes = option == "yes"
-        if yes:
-            for img in filtered_images:
-                try:
-                    client.images.remove(image=img.id, force=force)
-                except docker.errors.APIError as ex:
-                    print(img.id[7:19], "can't be removed:", ex.explanation)
-        else:
-            print("Aborted")
-    except Exception as ex:
-        print("error:  " + str(ex), file=sys.stderr)
-        exit(-1)
+    print("Following images will be cleared:")
+    print("IMAGE ID       CREATED          TAG")
+    now = datetime.datetime.now()
+    for img_id, img_tag, created in images:
+        print(img_id[7:19], " ", __dateFormat(now - created), img_tag if img_tag is not None else "<none>")
+    if not yes:
+        option = input("Are you sure (yes/no): ")
+        while option not in ["yes", "no"]:
+            option = input("Please type yes/no: ")
+        yes = option == "yes"
+    if yes:
+        for img_id, img_tag, _ in images:
+            try:
+                client.images.remove(image=img_tag if img_tag is not None else img_id, force=force)
+            except docker.errors.APIError as ex:
+                print(img_id[7:19], "can't be removed:", ex.explanation)
+    else:
+        print("Aborted")
 
 
-def push(yes, builders, version, whitelist, blacklist, default_registry):
-    try:
-        client = docker.from_env()
-        images = __getImages(client, version, default_registry)
-        filtered_images = __filter(images, whitelist, blacklist, False, default_registry)
-        filtered_images.sort(key=__getDate)
-        if not builders:
-            builder = re.compile(".*\/.*-?builder(:.+)?")
+def push(yes, builders, version, whitelist, blacklist, default_registry, namespace):
+    client = docker.from_env()
+    images = __getImages(client, version, default_registry, namespace, whitelist, blacklist)
+    images.sort(key=lambda x: x[2])
+    if not builders:
+        builder = re.compile(".*\/.*-?builder(:.+)?")
+        images = list(filter(lambda img: not builder.match(img[1]), images))
 
-            def isBuilder(img):
-                for tag in img.attrs['RepoTags']:
-                    if builder.match(tag):
-                        return False
-                return True
-
-            filtered_images = list(filter(isBuilder, filtered_images))
-
-        print("Following images will be pushed:")
-        for img in filtered_images:
-            for tag in img.attrs['RepoTags']:
-                print("  ", tag)
-        if not yes:
-            option = input("Are you sure (yes/no): ")
-            while option not in ["yes", "no"]:
-                option = input("Please type yes/no: ")
-            yes = option == "yes"
-        if yes:
-            for img in filtered_images:
-                client = docker.from_env()
-                for tag in img.attrs['RepoTags']:
-                    client.images.push(tag)
-                    print(tag, "PUSHED")
-
-    except Exception as ex:
-        print("error:  " + str(ex), file=sys.stderr)
-        exit(-1)
+    print("Following images will be pushed:")
+    print("IMAGE ID       CREATED          TAG")
+    now = datetime.datetime.now()
+    for img_id, img_tag, created in images:
+        print(img_id[7:19], " ", __dateFormat(now - created), img_tag if img_tag is not None else "<none>")
+    if not yes:
+        option = input("Are you sure (yes/no): ")
+        while option not in ["yes", "no"]:
+            option = input("Please type yes/no: ")
+        yes = option == "yes"
+    if yes:
+        for _, img_tag, _ in images:
+            client = docker.from_env()
+            client.images.push(img_tag)
+            print(img_tag, "PUSHED")
 
 
 def build(sources, local_sources, ignore_folders, version_filters, custom_images, bases, full, save_logs, version_tags,
-          version, default_registry):
-    try:
-        with tempfile.TemporaryDirectory(prefix="ignis") as wd:
-            core_list = list()
-            version_map = dict()
-            for vf in version_filters:
-                version_map[vf[0]] = vf[1]
+          version, default_registry, namespace):
+    with tempfile.TemporaryDirectory(prefix="ignis") as wd:
+        core_list = list()
+        version_map = dict()
+        for vf in version_filters:
+            version_map[vf[0]] = vf[1]
 
-            tmp = os.path.join(wd, "tmp")
+        tmp = os.path.join(wd, "tmp")
 
-            def prepare_sources(folder, local, duplicates):
-                dockerfiles = os.path.join(folder, "Dockerfiles")
-                if not os.path.exists(dockerfiles):
-                    print("warn: " + folder + " ignored, Dockerfiles folder not found")
-                    return
-                subfolders = list(filter(lambda name: name not in ignore_folders, os.listdir(dockerfiles)))
-                for core in subfolders:
-                    if core in duplicates:
-                        raise RuntimeError(core + " is already defined")
-                    duplicates.add(core)
-                    core_folder = os.path.join(wd, core)
-                    if core == subfolders[-1] and not local:
-                        os.rename(folder, core_folder)
-                    else:
-                        shutil.copytree(folder, core_folder)
-
-                    v = __setVersion(core, core_folder, version_map.get(core, version))
-                    git_folder = os.path.join(core_folder, ".git")
-                    if os.path.exists(git_folder):
-                        shutil.rmtree(git_folder, ignore_errors=True)
-                    print("  " + core + ":" + v)
-                    core_list.append((core_folder, v))
-
-            print("Sources:")
-            duplicates = set()
-            if len(sources) > 0 and GIT_ERROR is not None:
-                raise GIT_ERROR
-            for src in sources:
-                git.Repo.clone_from(src, tmp)
-                prepare_sources(tmp, False, duplicates)
-
-            for src in local_sources:
-                prepare_sources(src, True, duplicates)
-
-            print("Dockerfiles:")
-            build_list = list()
-            for path, v in core_list:
-                folder = os.path.join(path, "Dockerfiles", os.path.basename(path))
-                dfiles = __find(folder, "Dockerfile")
-                for dfile in dfiles:
-                    order_file = os.path.join(os.path.dirname(dfile), "order")
-                    if os.path.exists(order_file):
-                        with open(order_file) as f:
-                            order = int(f.readline())
-                    else:
-                        order = 100
-                    id = os.path.relpath(os.path.dirname(dfile), os.path.join(path, "Dockerfiles")).replace("/", "-")
-                    build_list.append({
-                        "id": id,
-                        "name": default_registry + "ignishpc/" + id,
-                        "path": path,
-                        "dockerfile": dfile,
-                        "log": os.path.join(os.path.dirname(dfile), "build.log"),
-                        "version": v,
-                        "order": order,
-                    })
-                    print("  " + os.path.relpath(build_list[-1]["dockerfile"], build_list[-1]["path"]))
-
-            real_cores = dict()
-            print("Cores:")
-            for core in build_list[:]:
-                if core["id"].endswith("-builder"):
-                    id = core["id"][0: -len("-builder")]
-                    real_cores[id] = core
-                    print("  " + id)
-                    if core["id"] in ("driver-builder", "executor-builder") or \
-                            (not bases and core["id"] == "common-builder"):
-                        continue
-                    build_list.append(
-                        __createDockerfile(wd, id + "-driver", ["driver", id], core["version"], default_registry, 200))
-                    build_list.append(
-                        __createDockerfile(wd, id + "-executor", ["executor", id], core["version"], default_registry,
-                                           200))
-                    build_list.append(
-                        __createDockerfile(wd, id if id != "common" else "common-full", ["driver", "executor", id],
-                                           core["version"], default_registry, 201))
-
-            if real_cores and full:
-                custom_images.insert(0, ["full", "driver", "executor"] + list(real_cores.keys()))
-
-            i = 201
-            for img in custom_images:
-                i += 1
-                if version:
-                    custom_version = version
-                elif "common" in real_cores:
-                    custom_version = real_cores["common"]["version"]
+        def prepare_sources(folder, local, duplicates):
+            dockerfiles = os.path.join(folder, "Dockerfiles")
+            if not os.path.exists(dockerfiles):
+                print("warn: " + folder + " ignored, Dockerfiles folder not found")
+                return
+            subfolders = list(filter(lambda name: name not in ignore_folders, os.listdir(dockerfiles)))
+            for core in subfolders:
+                if core in duplicates:
+                    raise RuntimeError(core + " is already defined")
+                duplicates.add(core)
+                core_folder = os.path.join(wd, core)
+                if core == subfolders[-1] and not local:
+                    os.rename(folder, core_folder)
                 else:
-                    custom_version = "latest"
-                build_list.append(__createDockerfile(wd, img[0], img[1:], custom_version, default_registry, i))
+                    shutil.copytree(folder, core_folder)
 
-            build_list.sort(key=lambda x: x["order"])
+                v = __setVersion(core, core_folder, version_map.get(core, version))
+                git_folder = os.path.join(core_folder, ".git")
+                if os.path.exists(git_folder):
+                    shutil.rmtree(git_folder, ignore_errors=True)
+                print("  " + core + ":" + v)
+                core_list.append((core_folder, v))
 
-            print("Images:")
-            order = None
+        print("Sources:")
+        duplicates = set()
+        if len(sources) > 0 and GIT_ERROR is not None:
+            raise GIT_ERROR
+        for src in sources:
+            git.Repo.clone_from(src, tmp)
+            prepare_sources(tmp, False, duplicates)
+
+        for src in local_sources:
+            prepare_sources(src, True, duplicates)
+
+        print("Dockerfiles:")
+        build_list = list()
+        for path, v in core_list:
+            folder = os.path.join(path, "Dockerfiles", os.path.basename(path))
+            dfiles = __find(folder, "Dockerfile")
+            for dfile in dfiles:
+                order_file = os.path.join(os.path.dirname(dfile), "order")
+                if os.path.exists(order_file):
+                    with open(order_file) as f:
+                        order = int(f.readline())
+                else:
+                    order = 100
+                id = os.path.relpath(os.path.dirname(dfile), os.path.join(path, "Dockerfiles")).replace("/", "-")
+                build_list.append({
+                    "id": id,
+                    "name": default_registry + namespace + id,
+                    "path": path,
+                    "dockerfile": dfile,
+                    "log": os.path.join(os.path.dirname(dfile), "build.log"),
+                    "version": v,
+                    "order": order,
+                })
+                print("  " + os.path.relpath(build_list[-1]["dockerfile"], build_list[-1]["path"]))
+
+        real_cores = dict()
+        print("Cores:")
+        for core in build_list[:]:
+            if core["id"].endswith("-builder"):
+                id = core["id"][0: -len("-builder")]
+                real_cores[id] = core
+                print("  " + id)
+                if core["id"] in ("driver-builder", "executor-builder") or \
+                        (not bases and core["id"] == "common-builder"):
+                    continue
+                build_list.append(
+                    __createDockerfile(wd, id + "-driver", ["driver", id], core["version"], default_registry,
+                                       namespace, 200))
+                build_list.append(
+                    __createDockerfile(wd, id + "-executor", ["executor", id], core["version"], default_registry,
+                                       namespace, 200))
+                build_list.append(
+                    __createDockerfile(wd, id if id != "common" else "common-full", ["driver", "executor", id],
+                                       core["version"], default_registry, namespace, 201))
+
+        if real_cores and full:
+            custom_images.insert(0, ["full", "driver", "executor"] + list(real_cores.keys()))
+
+        i = 201
+        for img in custom_images:
+            i += 1
+            if version:
+                custom_version = version
+            elif "common" in real_cores:
+                custom_version = real_cores["common"]["version"]
+            else:
+                custom_version = "latest"
+            build_list.append(
+                __createDockerfile(wd, img[0], img[1:], custom_version, default_registry, namespace, i))
+
+        build_list.sort(key=lambda x: x["order"])
+
+        print("Images:")
+        order = None
+        for build in build_list:
+            if build["order"] != order:
+                print("  ---(" + str(build["order"]) + ")---")
+            order = build["order"]
+            print("  " + build["name"] + ":" + build["version"])
+
+        build_list.append({
+            "order": None
+        })
+
+        print("Build:")
+        image_list = list()
+        with ThreadPoolExecutor() as executor:
+            wait_list = list()
+            order = build_list[0]["order"]
             for build in build_list:
                 if build["order"] != order:
-                    print("  ---(" + str(build["order"]) + ")---")
-                order = build["order"]
-                print("  " + build["name"] + ":" + build["version"])
-
-            build_list.append({
-                "order": None
-            })
-
-            print("Build:")
-            image_list = list()
-            with ThreadPoolExecutor() as executor:
-                wait_list = list()
-                order = build_list[0]["order"]
-                for build in build_list:
-                    if build["order"] != order:
-                        error = None
-                        for info, wait in wait_list:
-                            log = os.path.join(os.getcwd(), "ignisbuild-" + info["id"] + ".log")
-                            try:
-                                print("  " + info["name"] + ":" + info["version"], end=" ", flush=True)
-                                image_list.append((info, wait.result()))
-                                print("SUCCESS")
-                                if save_logs:
-                                    shutil.copy(info["log"], log)
-                            except Exception as ex:
-                                print("FAILED, check " + log)
+                    error = None
+                    for info, wait in wait_list:
+                        log = os.path.join(os.getcwd(), "ignisbuild-" + info["id"] + ".log")
+                        try:
+                            print("  " + info["name"] + ":" + info["version"], end=" ", flush=True)
+                            image_list.append((info, wait.result()))
+                            print("SUCCESS")
+                            if save_logs:
                                 shutil.copy(info["log"], log)
-                                error = ex
-                        if error:
-                            print("Aborting")
-                            raise error
-                        wait_list.clear()
-                    order = build["order"]
-                    if order is None:
-                        break
-                    wait_list.append((build, executor.submit(
-                        __docker_build,
-                        name=build["name"],
-                        path=build["path"],
-                        dockerfile=build["dockerfile"],
-                        log=build["log"],
-                        version=build["version"],
-                        default_registry=default_registry
-                    )))
-            print("Build end")
-            if version_tags:
-                print("Setting additional version tag:")
-                for vt in version_tags:
-                    for info, img in image_list:
-                        tag = info['name'] + ':' + vt
-                        img.tag(tag)
-                        print("  ", tag)
+                        except Exception as ex:
+                            print("FAILED, check " + log)
+                            shutil.copy(info["log"], log)
+                            error = ex
+                    if error:
+                        print("Aborting")
+                        raise error
+                    wait_list.clear()
+                order = build["order"]
+                if order is None:
+                    break
+                wait_list.append((build, executor.submit(
+                    __docker_build,
+                    name=build["name"],
+                    path=build["path"],
+                    dockerfile=build["dockerfile"],
+                    log=build["log"],
+                    version=build["version"],
+                    default_registry=default_registry,
+                    namespace=namespace
+                )))
+        print("Build end")
+        if version_tags:
+            print("Setting additional version tag:")
+            for vt in version_tags:
+                for info, img in image_list:
+                    tag = info['name'] + ':' + vt
+                    img.tag(tag)
+                    print("  ", tag)
 
-    except Exception as ex:
-        print("error:  " + str(ex), file=sys.stderr)
-        exit(-1)
 
 
-def __filter(images, whitelist, blacklist, add_none, default_registry):
-    tags = dict()
-    tags_none = list()
-    prefix = "ignishpc/"
-    for img in images:
-        tag_list = img.attrs['RepoTags']
-        if len(tag_list) == 0 and add_none:
-            tags_none.append(img)
-        for tag in tag_list:
-            if tag.startswith(default_registry):
-                name = tag[len(default_registry):-1].split(':')[0]
-                if name.startswith(prefix):
-                    name = name[len(prefix):-1]
-                    tags[name] = img
+def __getImages(client, version, default_registry, namespace, whitelist, blacklist, none=False):
+    labels = ["ignis"] if version is None else ["ignis=" + version]
+    prefix = default_registry + namespace
+    imgs = client.images.list(name=prefix + "*", filters={"label": labels})
+    white_tags = set()
+    black_tags = set()
+    result = list()
 
     if whitelist is not None:
-        tags2 = dict()
-        for img in whitelist:
-            if img in tags:
-                tags2[img] = tags[tags]
-        tags = tags2
+        for name in whitelist:
+            if ":" in name:
+                white_tags.add(name)
+            else:
+                white_tags.add(name + ":latest")
+    for name in blacklist:
+        if ":" in name:
+            black_tags.add(name)
+        else:
+            black_tags.add(name + ":latest")
 
-    for img in blacklist:
-        if img in tags:
-            del tags[img]
+    for img in imgs:
+        for tag in img.tags:
+            if tag.startswith(prefix):
+                name = tag[len(prefix):]
+                if whitelist is not None and name not in white_tags:
+                    continue
+                if name in black_tags:
+                    continue
+                result.append((img.id, tag, __getDate(img)))
 
-    return list(set(list(tags.values()) + tags_none))
-
-
-def __getImages(client, version, default_registry, none=False):
-    labels = ["ignis"] if version is None else ["ignis=" + version]
-    imgs = client.images.list(name=default_registry + "ignishpc/*", filters={"label": labels})
     if none:
-        imgs2 = client.images.list(filters={"label": labels})
-        root_nones = list(filter(lambda img: len(img.attrs['RepoTags']) == 0, imgs2))
+        imgs = client.images.list(filters={"label": labels})
+        root_nones = list(filter(lambda img: len(img.attrs['RepoTags']) == 0, imgs))
         layers = client.images.list(filters={"label": labels}, all=True)
         layer_map = dict()
         for layer in layers:
@@ -301,14 +277,20 @@ def __getImages(client, version, default_registry, none=False):
             none = root_nones.pop()
             nones.append(none)
             parent_id = none.attrs['Parent']
-            if not parent_id and parent_id in layer_map:
+            if not parent_id or parent_id not in layer_map:
                 continue
             parent = layer_map[parent_id]
             if len(parent.attrs['RepoTags']) == 0:
                 root_nones.append(parent)
 
-        imgs += nones
-    return imgs
+        for img in nones:
+            if len(img.tags) > 0:
+                for tag in img.tags:
+                    result.append((img.id, tag))
+            else:
+                result.append((img.id, None, __getDate(img)))
+
+    return result
 
 
 def __getDate(img):
@@ -316,6 +298,24 @@ def __getDate(img):
     nano = sdate.split(".")[-1]
     sdate = sdate[0:-len(nano)] + nano[0:6] + 'Z'
     return datetime.datetime.strptime(sdate, '%Y-%m-%dT%H:%M:%S.%fZ')
+
+
+def __dateFormat(elapsed):
+    seconds = int(elapsed.total_seconds())
+    periods = [
+        ('year', 60 * 60 * 24 * 365),
+        ('month', 60 * 60 * 24 * 30),
+        ('day', 60 * 60 * 24),
+        ('hour', 60 * 60),
+        ('minute', 60),
+        ('second', 1)
+    ]
+    for pname, pseconds in periods:
+        if seconds > pseconds:
+            value = int(seconds / pseconds)
+            result = "{} {}{} {}".format(value, pname, 's' if value > 1 else '', "ago")
+            result += " " * (16 - len(result))
+            return result
 
 
 def __is_git(path):
@@ -354,7 +354,7 @@ def __setVersion(name, path, version):
     return tag
 
 
-def __docker_build(name, path, dockerfile, log, version, default_registry):
+def __docker_build(name, path, dockerfile, log, version, default_registry, namespace):
     error = None
     try:
         client = docker.from_env()
@@ -367,6 +367,7 @@ def __docker_build(name, path, dockerfile, log, version, default_registry):
             tag=name + ":" + version,
             buildargs={
                 "REGISTRY": default_registry,
+                "NAMESPACE": namespace,
                 "TAG": ":" + version,
                 "RELPATH": os.path.relpath(os.path.dirname(dockerfile), path) + "/"
             }
@@ -396,7 +397,7 @@ def __docker_build(name, path, dockerfile, log, version, default_registry):
     return imageObj
 
 
-def __createDockerfile(wd, id, cores, version, default_registry, order=100):
+def __createDockerfile(wd, id, cores, version, default_registry, namespace, order=100):
     cores = list(sorted(set(cores)))
     driver = False
     executor = False
@@ -415,12 +416,13 @@ def __createDockerfile(wd, id, cores, version, default_registry, order=100):
     with open(dfile, "w") as file:
         file.write("""
         ARG REGISTRY=""
+        ARG NAMESPACE="ignishpc"
         ARG TAG=""
-        FROM ${REGISTRY}ignishpc/common${TAG}
+        FROM ${REGISTRY}${NAMESPACE}/common${TAG}
         ARG RELPATH=""
         """)
         for core in cores:
-            builder = default_registry + "ignishpc/" + core + "-builder:" + version
+            builder = default_registry + namespace + core + "-builder:" + version
             file.write("COPY --from=" + builder + " ${IGNIS_HOME} ${IGNIS_HOME}\n")
             file.write("RUN 	${IGNIS_HOME}/bin/ignis-" + core + "-install.sh && ")
             file.write("rm -f ${IGNIS_HOME}/bin/ignis-" + core + "-install.sh\n")
@@ -433,7 +435,7 @@ def __createDockerfile(wd, id, cores, version, default_registry, order=100):
 
     return {
         "id": id,
-        "name": default_registry + "ignishpc/" + id,
+        "name": default_registry + namespace + id,
         "path": path,
         "dockerfile": dfile,
         "log": os.path.join(path, "build.log"),

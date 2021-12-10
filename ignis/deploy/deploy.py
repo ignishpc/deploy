@@ -17,9 +17,27 @@ def cli():
     parser = argparse.ArgumentParser(prog="ignis-deploy", description='Script for the deploy of an Ignis cluster')
     subparsers = parser.add_subparsers(dest='service', help="Available services")
 
+    # Common
+    def common_arguments(parser, force=False, clear=False, registry=False, namespace=False, tag=False):
+        if force:
+            parser.add_argument('-f', '--force', dest='force', action='store_true',
+                                help='Destroy container if exists')
+        if clear:
+            parser.add_argument('-c', '--clear', dest='clear', action='store_true',
+                                help='Clear all previous data')
+        if registry:
+            parser.add_argument('--docker-registry', dest='registry', action='store', metavar='url',
+                                help='Docker image registry', default=None)
+        if namespace:
+            parser.add_argument('--docker-namespace', dest='namespace', action='store', metavar='name',
+                                help='Docker image namespace', default="ignishpc")
+        if tag:
+            parser.add_argument('--docker-tag', dest='tag', action='store', metavar='tag',
+                                help='Docker image tag', default="")
+
     parser_check = subparsers.add_parser("status", description='Check modules status')
     # Registry
-    parser_rty = subparsers.add_parser("registry", description='Image registry')
+    parser_rty = subparsers.add_parser(registry.MODULE_NAME, description='Image registry')
     subparsers_rty = parser_rty.add_subparsers(dest='action', help="Registry service actions")
 
     rty_start = subparsers_rty.add_parser("start", description='Start a registry service')
@@ -32,10 +50,7 @@ def cli():
                            help='Registry server Port, default 5000')
     rty_start.add_argument('--path', dest='path', action='store', metavar='str',
                            help='File System path to store the registry contents, default /var/lib/ignis/registry')
-    rty_start.add_argument('-c', '--clear', dest='clear', action='store_true',
-                           help='Clear all previous images')
-    rty_start.add_argument('-f', '--force', dest='force', action='store_true',
-                           help='Destroy the image registry if exists')
+    common_arguments(rty_start, force=True, clear=True)
 
     rty_garbage = subparsers_rty.add_parser("garbage", description='Run registry garbage collection')
     rty_stop = subparsers_rty.add_parser("stop", description='Stop the registry service')
@@ -43,24 +58,20 @@ def cli():
     rty_destroy = subparsers_rty.add_parser("destroy", description='Destroy the registry service')
 
     # Registry-ui
-    parser_rty_ui = subparsers.add_parser("registry-ui", description='Image registry-ui')
+    parser_rty_ui = subparsers.add_parser(registry_ui.MODULE_NAME, description='Image registry-ui')
     subparsers_rty_ui = parser_rty_ui.add_subparsers(dest='action', help="Registry-ui service actions")
 
     rty_ui_start = subparsers_rty_ui.add_parser("start", description='Start a registry-ui service')
-    rty_ui_start.add_argument('-b', '--bind', dest='bind', action='store', metavar='address',
-                              help='The address that should be bound to for internal cluster communications, '
-                                   'default the first available private IPv4 address')
     rty_ui_start.add_argument('--port', dest='port', action='store', metavar='int', type=int,
                               help='Registry-ui server Port, default 3000')
-    rty_ui_start.add_argument('-f', '--force', dest='force', action='store_true',
-                              help='Destroy the image registry if exists')
+    common_arguments(rty_ui_start, clear=True, force=True)
 
     rty_ui_stop = subparsers_rty_ui.add_parser("stop", description='Stop the registry-ui service')
     rty_ui_resume = subparsers_rty_ui.add_parser("resume", description='Resume the registry-ui service')
     rty_ui_destroy = subparsers_rty_ui.add_parser("destroy", description='Destroy the registry-ui service')
 
     # Nomad parser
-    parser_nomad = subparsers.add_parser("nomad", description='Nomad cluster')
+    parser_nomad = subparsers.add_parser(nomad.MODULE_NAME, description='Nomad cluster')
     subparsers_nomad = parser_nomad.add_subparsers(dest='action', help="Nomad service actions")
 
     nomad_start = subparsers_nomad.add_parser("start", description='Start a Nomad service')
@@ -87,19 +98,14 @@ def cli():
                              help='Docker binary, default /usr/bin/docker')
     nomad_start.add_argument('--volumes', dest='volumes', metavar='path',
                              nargs="*", help='Allow mount host path as volume', default=[])
-    nomad_start.add_argument('-f', '--force', dest='force', action='store_true',
-                             help='Destroy nomad if exists')
-    nomad_start.add_argument('-c', '--clear', dest='clear', action='store_true',
-                             help='Clear all previous data')
-    nomad_start.add_argument('--default-registry', dest='registry', action='store', metavar='url',
-                             help='Docker image registry to pull image')
+    common_arguments(nomad_start, force=True, clear=True, registry=True, namespace=True, tag=True)
 
     nomad_stop = subparsers_nomad.add_parser("stop", description='Stop the Nomad service')
     nomad_resume = subparsers_nomad.add_parser("resume", description='Resume the Nomad service')
     nomad_destroy = subparsers_nomad.add_parser("destroy", description='Destroy the Nomad service')
 
     # Zookeper parser
-    parser_zk = subparsers.add_parser("zookeeper", description='Zookeeper cluster')
+    parser_zk = subparsers.add_parser(zookeeper.MODULE_NAME, description='Zookeeper cluster')
     subparsers_zk = parser_zk.add_subparsers(dest='action', help="Zookeeper service actions")
 
     zk_start = subparsers_zk.add_parser("start", description='Start a Zookeeper service')
@@ -122,19 +128,14 @@ def cli():
                           help='Conf directory, default /etc/ignis/zookeeper')
     zk_start.add_argument('-p', '--ports', dest='ports', nargs=3, metavar='int', type=int,
                           help='Ports used by zookeper services, default 2888 3888 2181')
-    zk_start.add_argument('-f', '--force', dest='force', action='store_true',
-                          help='Destroy the zookeper if exists')
-    zk_start.add_argument('-c', '--clear', dest='clear', action='store_true',
-                          help='Clear all previous data')
-    zk_start.add_argument('--default-registry', dest='registry', action='store', metavar='url',
-                          help='Docker image registry to pull image')
+    common_arguments(zk_start, force=True, clear=True, registry=True, namespace=True, tag=True)
 
     zk_stop = subparsers_zk.add_parser("stop", description='Stop the Zookeeper service')
     zk_resume = subparsers_zk.add_parser("resume", description='Resume the Zookeeper service')
     zk_destroy = subparsers_zk.add_parser("destroy", description='Destroy the Zookeeper service')
 
     # Mesos parser
-    parser_mesos = subparsers.add_parser("mesos", description='Mesos cluster')
+    parser_mesos = subparsers.add_parser(mesos.MODULE_NAME, description='Mesos cluster')
     subparsers_mesos = parser_mesos.add_subparsers(dest='action', help="Mesos service actions")
 
     mesos_start = subparsers_mesos.add_parser("start", description='Start a Mesos service')
@@ -165,19 +166,14 @@ def cli():
                              help='Data directory, default /var/lib/ignis/mesos')
     mesos_start.add_argument('--docker', dest='docker_bin', action='store', metavar='path',
                              help='Docker binary, default /usr/bin/docker')
-    mesos_start.add_argument('-f', '--force', dest='force', action='store_true',
-                             help='Destroy the mesos if exists')
-    mesos_start.add_argument('-c', '--clear', dest='clear', action='store_true',
-                             help='Clear all previous data')
-    mesos_start.add_argument('--default-registry', dest='registry', action='store', metavar='url',
-                             help='Docker image registry to pull image')
+    common_arguments(mesos_start, force=True, clear=True, registry=True, namespace=True, tag=True)
 
     mesos_stop = subparsers_mesos.add_parser("stop", description='Stop the Mesos service')
     mesos_resume = subparsers_mesos.add_parser("resume", description='Resume the Mesos service')
     mesos_destroy = subparsers_mesos.add_parser("destroy", description='Destroy the Mesos service')
 
     # Submitter parser
-    parser_submitter = subparsers.add_parser("submitter", description='Ignis applications submitter')
+    parser_submitter = subparsers.add_parser(submitter.MODULE_NAME, description='Ignis applications submitter')
     subparsers_submitter = parser_submitter.add_subparsers(dest='action', help="Ignis submitter service actions")
 
     submitter_start = subparsers_submitter.add_parser("start", description='Start a Ignis submitter service')
@@ -198,17 +194,14 @@ def cli():
     submitter_start.add_argument('--mount', dest='mounts', action='append', metavar=('host', 'container'), nargs="+"
                                  , help='Create environment variable inside submit. Use <host>:ro to read only',
                                  default=[])
-    submitter_start.add_argument('-f', '--force', dest='force', action='store_true',
-                                 help='Destroy the submitter if exists')
-    submitter_start.add_argument('--default-registry', dest='registry', action='store', metavar='url',
-                                 help='Docker image registry to pull image')
+    common_arguments(submitter_start, force=True, clear=False, registry=True, namespace=True, tag=True)
 
     submitter_stop = subparsers_submitter.add_parser("stop", description='Stop the Ignis submitter service')
     submitter_resume = subparsers_submitter.add_parser("resume", description='Resume the Ignis submitter service')
     submitter_destroy = subparsers_submitter.add_parser("destroy", description='Destroy the Ignis submitter service')
 
     # Images
-    parser_submitter = subparsers.add_parser("images", description='Ignis images manager')
+    parser_submitter = subparsers.add_parser(images.MODULE_NAME, description='Ignis images manager')
     subparsers_images = parser_submitter.add_subparsers(dest='action', help="Ignis images actions")
 
     images_clear = subparsers_images.add_parser("clear", description='Delete all Ignis images')
@@ -229,8 +222,7 @@ def cli():
                               help='Add or ignore images with <none> tag, default(--no-none)')
     images_clear.add_argument('-f', '--force', dest='force', action='store_true',
                               help='Force image deletion')
-    images_clear.add_argument('--default-registry', dest='registry', action='store', metavar='url',
-                              help='Docker image registry')
+    common_arguments(images_clear, registry=True, namespace=True)
 
     images_push = subparsers_images.add_parser("push", description='Push all Ignis images')
     images_push.add_argument('-y', dest='yes', action='store_true', default=False,
@@ -243,8 +235,7 @@ def cli():
                              nargs="+", help='Only pushes images in the white list', default=None)
     images_push.add_argument('--blacklist', dest='blacklist', metavar='image',
                              nargs="+", help='Ignore images(including whitelist) in the black list', default=[])
-    images_push.add_argument('--default-registry', dest='registry', action='store', metavar='url',
-                             help='Docker image registry')
+    common_arguments(images_push, registry=True, namespace=True)
 
     images_build = subparsers_images.add_parser("build", description='Build Ignis images')
     images_build.add_argument('--sources', dest='sources', action='store', metavar='url', nargs="*",
@@ -267,8 +258,7 @@ def cli():
                               nargs="*", help='Additional version tags', default=[])
     images_build.add_argument('--custom-image', dest='custom_images', action='append', metavar=('name', 'cores'),
                               nargs="+", help='Path core folders', default=[])
-    images_build.add_argument('--default-registry', dest='registry', action='store', metavar='url',
-                              help='Docker image registry')
+    common_arguments(images_build, registry=True, namespace=True)
 
     args = parser.parse_args(['-h'] if len(sys.argv) == 1 else None)
 
@@ -277,6 +267,13 @@ def cli():
         sys.exit(0)
 
     default_registry = registry.parse(args.registry if "registry" in args else None)
+    namespace = args.namespace if "namespace" in args else ""
+    img_tag = args.tag if "tag" in args else ""
+    if len(namespace) > 0 and namespace[-1] != "/":
+        namespace += "/"
+    if len(img_tag) > 0 and img_tag[0] != ':':
+        img_tag = ":" + img_tag
+    url_namespace = default_registry + namespace
 
     if args.service == "status":
         print("Service Status:")
@@ -304,8 +301,7 @@ def cli():
             registry.destroy()
     elif args.service == registry_ui.MODULE_NAME:
         if args.action == "start":
-            registry_ui.start(bind=args.bind,
-                              port=args.port,
+            registry_ui.start(port=args.port,
                               registry=default_registry,
                               force=args.force)
         elif args.action == "stop":
@@ -327,7 +323,8 @@ def cli():
                         no_server=args.no_server,
                         docker_bin=args.docker_bin,
                         volumes=args.volumes,
-                        default_registry=default_registry,
+                        url_namespace=url_namespace,
+                        img_tag=img_tag,
                         force=args.force,
                         clear=args.clear)
         elif args.action == "stop":
@@ -346,7 +343,8 @@ def cli():
                             logs=args.logs,
                             conf=args.conf,
                             data=args.data,
-                            default_registry=default_registry,
+                            url_namespace=url_namespace,
+                            img_tag=img_tag,
                             clear=args.clear,
                             force=args.force)
         elif args.action == "stop":
@@ -369,7 +367,8 @@ def cli():
                         no_agent=args.no_agent,
                         data=args.data,
                         docker_bin=args.docker_bin,
-                        default_registry=default_registry,
+                        url_namespace=url_namespace,
+                        img_tag=img_tag,
                         clear=args.clear,
                         force=args.force,
                         )
@@ -391,6 +390,8 @@ def cli():
                             envs=args.envs,
                             mounts=args.mounts,
                             default_registry=default_registry,
+                            url_namespace=url_namespace,
+                            img_tag=img_tag,
                             force=args.force)
         elif args.action == "stop":
             submitter.stop()
@@ -406,14 +407,16 @@ def cli():
                          blacklist=args.blacklist,
                          add_none=args.add_none,
                          force=args.force,
-                         default_registry=default_registry)
+                         default_registry=default_registry,
+                         namespace=namespace)
         elif args.action == "push":
             images.push(yes=args.yes,
                         builders=args.builders,
                         version=args.version,
                         whitelist=args.whitelist,
                         blacklist=args.blacklist,
-                        default_registry=default_registry)
+                        default_registry=default_registry,
+                        namespace=namespace)
         elif args.action == "build":
             images.build(sources=args.sources,
                          local_sources=args.local_sources,
@@ -425,7 +428,8 @@ def cli():
                          save_logs=args.logs,
                          version_tags=args.version_tags,
                          version=args.version,
-                         default_registry=default_registry)
+                         default_registry=default_registry,
+                         namespace=namespace)
 
 
 def main():
@@ -433,6 +437,12 @@ def main():
         cli()
     except KeyboardInterrupt as ex:
         print("\nAborted")
+        exit(-1)
+    except PermissionError:
+        print("root required!!", file=sys.stderr)
+        sys.exit(-1)
+    except Exception as ex:
+        print(str(type(ex).__name__) + ":  " + str(ex), file=sys.stderr)
         exit(-1)
 
 

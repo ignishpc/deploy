@@ -5,7 +5,7 @@ with open("README.rst", "r") as fh:
 
 setuptools.setup(
     name='ignishpc',
-    version='2.0.3.post1',
+    version='2.0.4',
     author="cesarpomar",
     author_email="cesaralfredo.pineiro@usc.es",
     description='IgnisHPC Deploy',
