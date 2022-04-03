@@ -2,7 +2,6 @@ import datetime
 import os
 import re
 import shutil
-import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from distutils.version import StrictVersion
@@ -66,7 +65,10 @@ def push(yes, builders, version, whitelist, blacklist, default_registry, namespa
     if yes:
         for _, img_tag, _ in images:
             client = docker.from_env()
-            client.images.push(img_tag)
+            for line in client.images.push(img_tag, stream=True, decode=True):
+                if 'errorDetail' in line:
+                    print("Aborting")
+                    raise docker.errors.APIError(line['errorDetail']['message'])
             print(img_tag, "PUSHED")
 
 
@@ -416,9 +418,9 @@ def __createDockerfile(wd, id, cores, version, default_registry, namespace, orde
     with open(dfile, "w") as file:
         file.write("""
         ARG REGISTRY=""
-        ARG NAMESPACE="ignishpc"
+        ARG NAMESPACE="ignishpc/"
         ARG TAG=""
-        FROM ${REGISTRY}${NAMESPACE}/common${TAG}
+        FROM ${REGISTRY}${NAMESPACE}common${TAG}
         ARG RELPATH=""
         """)
         for core in cores:
