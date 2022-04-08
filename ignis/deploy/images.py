@@ -73,7 +73,7 @@ def push(yes, builders, version, whitelist, blacklist, default_registry, namespa
 
 
 def build(sources, local_sources, ignore_folders, version_filters, custom_images, bases, full, save_logs, version_tags,
-          version, default_registry, namespace):
+          version, default_registry, namespace, platform):
     with tempfile.TemporaryDirectory(prefix="ignis") as wd:
         core_list = list()
         version_map = dict()
@@ -224,7 +224,8 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
                     log=build["log"],
                     version=build["version"],
                     default_registry=default_registry,
-                    namespace=namespace
+                    namespace=namespace,
+                    platform=platform
                 )))
         print("Build end")
         if version_tags:
@@ -234,7 +235,6 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
                     tag = info['name'] + ':' + vt
                     img.tag(tag)
                     print("  ", tag)
-
 
 
 def __getImages(client, version, default_registry, namespace, whitelist, blacklist, none=False):
@@ -356,11 +356,15 @@ def __setVersion(name, path, version):
     return tag
 
 
-def __docker_build(name, path, dockerfile, log, version, default_registry, namespace):
+def __docker_build(name, path, dockerfile, log, version, default_registry, namespace, platform):
     error = None
     try:
-        client = docker.from_env()
-        imageObj, buildlog = client.images.build(
+        if platform is None:
+            client = docker.from_env()
+            build2 = client.images.build
+        else:
+            build2 = __buildx
+        imageObj, buildlog = build2(
             path=path,
             dockerfile=dockerfile,
             labels={
@@ -372,16 +376,22 @@ def __docker_build(name, path, dockerfile, log, version, default_registry, names
                 "NAMESPACE": namespace,
                 "TAG": ":" + version,
                 "RELPATH": os.path.relpath(os.path.dirname(dockerfile), path) + "/"
-            }
+            },
+            platform=platform
         )
     except docker.errors.BuildError as ex:
         imageObj = None
         buildlog = ex.build_log
-        error = ex
         manifest_error = re.compile(".*manifest for (.*) not found.*")
+        if type(ex.msg) == dict:
+            if "message" in ex.msg:
+                ex.msg = ex.msg["message"]
+            else:
+                ex.msg = str(ex.msg)
         result = manifest_error.search(ex.msg)
         if result:
-            error = RuntimeError(result.group(1) + " required, use --sources or --local-source to add Dockerfile")
+            ex.msg = result.group(1) + " required, use --sources or --local-source to add Dockerfile"
+        error = RuntimeError(ex.msg)
     except Exception as ex:
         imageObj = None
         buildlog = []
@@ -444,3 +454,40 @@ def __createDockerfile(wd, id, cores, version, default_registry, namespace, orde
         "version": version,
         "order": order,
     }
+
+
+def __buildx(path, dockerfile, labels, tag, buildargs, platform):
+    import subprocess
+
+    def join(name, values):
+        array = list()
+        for value in values:
+            array.append(name)
+            array.append(value)
+        return array
+
+    process = subprocess.Popen(["docker", "buildx", "build",
+                                "--progress", "plain",
+                                "--load",
+                                "--file", dockerfile,
+                                "--tag", tag,
+                                "--platform", platform,
+                                ] +
+                               join("--build-arg", [key + "=" + value for key, value in buildargs.items()]) +
+                               join("--label", [key + "=" + value for key, value in labels.items()]) +
+                               [path], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
+    (output, _) = process.communicate()
+    exit_code = process.wait()
+    buildlog = [{'stream': output}]
+    if exit_code != 0:
+        lines = output.split("\n")
+        reason = lines[-2] if len(lines) > 1 else output
+        if "does not exist" in reason or "not found" in reason:
+            for line in reversed(lines):
+                if "load metadata for" in line:
+                    reason = "manifest for " + line.split(" ")[-1][:-1] + " not found"
+                    break
+        raise docker.errors.BuildError(reason, buildlog)
+
+    client = docker.from_env()
+    return client.images.get(tag), buildlog

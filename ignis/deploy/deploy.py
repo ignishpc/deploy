@@ -258,6 +258,8 @@ def cli():
                               nargs="*", help='Additional version tags', default=[])
     images_build.add_argument('--custom-image', dest='custom_images', action='append', metavar=('name', 'cores'),
                               nargs="+", help='Path core folders', default=[])
+    images_build.add_argument('--platform', dest='platform', action='store',
+                              help='Create ignis images for one or more platforms, requires buildx.')
     common_arguments(images_build, registry=True, namespace=True)
 
     args = parser.parse_args(['-h'] if len(sys.argv) == 1 else None)
@@ -429,7 +431,8 @@ def cli():
                          version_tags=args.version_tags,
                          version=args.version,
                          default_registry=default_registry,
-                         namespace=namespace)
+                         namespace=namespace,
+                         platform=args.platform)
 
 
 def main():
