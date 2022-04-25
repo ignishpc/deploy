@@ -82,53 +82,74 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
 
         tmp = os.path.join(wd, "tmp")
 
-        def prepare_sources(folder, local, duplicates):
+        def prepare_sources(core_name, local, folder, sid):
             dockerfiles = os.path.join(folder, "Dockerfiles")
             if not os.path.exists(dockerfiles):
                 print("warn: " + folder + " ignored, Dockerfiles folder not found")
                 return
             subfolders = list(filter(lambda name: name not in ignore_folders, os.listdir(dockerfiles)))
-            for core in subfolders:
-                if core in duplicates:
-                    raise RuntimeError(core + " is already defined")
-                duplicates.add(core)
-                core_folder = os.path.join(wd, core)
-                if core == subfolders[-1] and not local:
-                    os.rename(folder, core_folder)
-                else:
-                    shutil.copytree(folder, core_folder)
+            core_folder = os.path.join(wd, core_name, str(sid))
+            if local:
+                shutil.copytree(folder, core_folder, dirs_exist_ok=True)
+            else:
+                shutil.move(folder, core_folder)
+            v = __setVersion(core_name, core_folder, version_map.get(core_name, version))
 
-                v = __setVersion(core, core_folder, version_map.get(core, version))
-                git_folder = os.path.join(core_folder, ".git")
-                if os.path.exists(git_folder):
-                    shutil.rmtree(git_folder, ignore_errors=True)
-                print("  " + core + ":" + v)
-                core_list.append((core_folder, v))
+            git_folder = os.path.join(core_folder, ".git")
+            if os.path.exists(git_folder):
+                shutil.rmtree(git_folder, ignore_errors=True)
+
+            for core in subfolders:
+                core_list.append((core, core_folder, v))
+            print("  " + core_name + ":" + v)
 
         print("Sources:")
-        duplicates = set()
+        sid = 0
         if len(sources) > 0 and GIT_ERROR is not None:
             raise GIT_ERROR
         for src in sources:
+            name = src.split("/")[-1]
+            if name.endswith(".git"):
+                name = name[:-len(".git")]
             git.Repo.clone_from(src, tmp)
-            prepare_sources(tmp, False, duplicates)
+            prepare_sources(name, False, tmp, sid)
+            sid += 1
 
         for src in local_sources:
-            prepare_sources(src, True, duplicates)
+            name = os.path.basename(src[:-1] if src[-1] == '/' else src)
+            prepare_sources(name, True, src, sid)
+            sid += 1
 
         print("Dockerfiles:")
+        duplicates = set()
         build_list = list()
-        for path, v in core_list:
-            folder = os.path.join(path, "Dockerfiles", os.path.basename(path))
+        libs = dict()
+        for name, path, v in core_list:
+            folder = os.path.join(path, "Dockerfiles", name)
             dfiles = __find(folder, "Dockerfile")
             for dfile in dfiles:
                 order_file = os.path.join(os.path.dirname(dfile), "order")
+                id = os.path.relpath(os.path.dirname(dfile), os.path.join(path, "Dockerfiles")).replace("/", "-")
                 if os.path.exists(order_file):
                     with open(order_file) as f:
                         order = int(f.readline())
+                elif id.endswith("-builder"):
+                    order = 50
+                elif id.endswith("-lib"):
+                    order = 200
+                    core = id.split('-')[0]
+                    if core in libs:
+                        libs[core].append(id)
+                    else:
+                        libs[core] = [id]
+                    id += "-builder"
                 else:
                     order = 100
-                id = os.path.relpath(os.path.dirname(dfile), os.path.join(path, "Dockerfiles")).replace("/", "-")
+
+                if id in duplicates:
+                    raise RuntimeError(id + " is already defined")
+                duplicates.add(id)
+
                 build_list.append({
                     "id": id,
                     "name": default_registry + namespace + id,
@@ -143,27 +164,41 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
         real_cores = dict()
         print("Cores:")
         for core in build_list[:]:
-            if core["id"].endswith("-builder"):
+            if core["id"].endswith("-builder") and not core["id"].endswith("lib-builder"):
                 id = core["id"][0: -len("-builder")]
                 real_cores[id] = core
                 print("  " + id)
                 if core["id"] in ("driver-builder", "executor-builder") or \
                         (not bases and core["id"] == "common-builder"):
                     continue
+                c_libs = libs.get(id, list())
                 build_list.append(
-                    __createDockerfile(wd, id + "-driver", ["driver", id], core["version"], default_registry,
-                                       namespace, 200))
+                    __createDockerfile(wd, id + "-driver", ["driver", id] + c_libs, core["version"], default_registry,
+                                       namespace, 300))
                 build_list.append(
-                    __createDockerfile(wd, id + "-executor", ["executor", id], core["version"], default_registry,
-                                       namespace, 200))
+                    __createDockerfile(wd, id + "-executor", ["executor", id] + c_libs, core["version"],
+                                       default_registry, namespace, 300))
                 build_list.append(
-                    __createDockerfile(wd, id if id != "common" else "common-full", ["driver", "executor", id],
-                                       core["version"], default_registry, namespace, 201))
+                    __createDockerfile(wd, id if id != "common" else "common-full", ["driver", "executor", id] + c_libs,
+                                       core["version"], default_registry, namespace, 301))
+        full_libs = list()
+        if len(libs) > 0:
+            print("Libraries:")
+            for core, names in libs.items():
+                for name in names:
+                    init = name.index(core) + len(core) + 1
+                    end = name.index("-lib")
+                    print("  " + name[init:end] + " (" + core + ")", end="")
+                    if core in real_cores:
+                        full_libs.append(name)
+                        print()
+                    else:
+                        print(" IGNORED")
 
         if real_cores and full:
-            custom_images.insert(0, ["full", "driver", "executor"] + list(real_cores.keys()))
+            custom_images.insert(0, ["full", "driver", "executor"] + list(real_cores.keys()) + full_libs)
 
-        i = 201
+        i = 301
         for img in custom_images:
             i += 1
             if version:
