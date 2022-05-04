@@ -163,9 +163,11 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
 
         real_cores = dict()
         print("Cores:")
+        cores_version = dict()
         for core in build_list[:]:
             if core["id"].endswith("-builder") and not core["id"].endswith("lib-builder"):
                 id = core["id"][0: -len("-builder")]
+                cores_version[id] = core["version"]
                 real_cores[id] = core
                 print("  " + id)
                 if core["id"] in ("driver-builder", "executor-builder") or \
@@ -194,6 +196,12 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
                         print()
                     else:
                         print(" IGNORED")
+
+                build_list.append(
+                    __createDockerfile(wd, core + "-libs-compiler", names, cores_version[core],default_registry,
+                                       namespace, 300, base=names[0]+"-builder"))
+
+
 
         if real_cores and full:
             custom_images.insert(0, ["full", "driver", "executor"] + list(real_cores.keys()) + full_libs)
@@ -333,7 +341,9 @@ def __getImages(client, version, default_registry, namespace, whitelist, blackli
 def __getDate(img):
     sdate = img.attrs['Created']
     nano = sdate.split(".")[-1]
-    sdate = sdate[0:-len(nano)] + nano[0:6] + 'Z'
+    sdate = sdate[0:-len(nano)] + nano[0:6]
+    if sdate[-1] != 'Z':
+        sdate += 'Z'
     return datetime.datetime.strptime(sdate, '%Y-%m-%dT%H:%M:%S.%fZ')
 
 
@@ -444,7 +454,7 @@ def __docker_build(name, path, dockerfile, log, version, default_registry, names
     return imageObj
 
 
-def __createDockerfile(wd, id, cores, version, default_registry, namespace, order=100):
+def __createDockerfile(wd, id, cores, version, default_registry, namespace, order=100, base="common"):
     cores = list(sorted(set(cores)))
     driver = False
     executor = False
@@ -465,7 +475,7 @@ def __createDockerfile(wd, id, cores, version, default_registry, namespace, orde
         ARG REGISTRY=""
         ARG NAMESPACE="ignishpc/"
         ARG TAG=""
-        FROM ${REGISTRY}${NAMESPACE}common${TAG}
+        FROM ${REGISTRY}${NAMESPACE}"""+base+"""${TAG}
         ARG RELPATH=""
         """)
         for core in cores:
