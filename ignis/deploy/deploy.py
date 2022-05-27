@@ -10,6 +10,7 @@ import ignis.deploy.registry as registry
 import ignis.deploy.registry_ui as registry_ui
 import ignis.deploy.submitter as submitter
 import ignis.deploy.zookeeper as zookeeper
+import ignis.deploy.version as version
 
 
 def cli():
@@ -35,7 +36,8 @@ def cli():
             parser.add_argument('--docker-tag', dest='tag', action='store', metavar='tag',
                                 help='Docker image tag', default="")
 
-    parser_check = subparsers.add_parser("status", description='Check modules status')
+    subparsers.add_parser("version", description='Show version and exits')
+    subparsers.add_parser("status", description='Check modules status')
     # Registry
     parser_rty = subparsers.add_parser(registry.MODULE_NAME, description='Image registry')
     subparsers_rty = parser_rty.add_subparsers(dest='action', help="Registry service actions")
@@ -263,6 +265,9 @@ def cli():
     common_arguments(images_build, registry=True, namespace=True)
 
     args = parser.parse_args(['-h'] if len(sys.argv) == 1 else None)
+    if args.service == "version":
+        print(version.__version__)
+        exit(0)
 
     if "action" in args and not args.action:
         subparsers.choices[args.service].print_help()

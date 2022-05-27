@@ -1,11 +1,12 @@
 import setuptools
+import ignis.deploy.version as version
 
 with open("README.rst", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name='ignishpc',
-    version='2.1.0',
+    version=version.__version__,
     author="cesarpomar",
     author_email="cesaralfredo.pineiro@usc.es",
     description='IgnisHPC Deploy',
