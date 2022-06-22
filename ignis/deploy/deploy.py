@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import sys
 
 import ignis.deploy.images as images
@@ -264,6 +265,16 @@ def cli():
                               help='Create ignis images for one or more platforms, requires buildx.')
     common_arguments(images_build, registry=True, namespace=True)
 
+    images_singularity = subparsers_images.add_parser("singularity",
+                                                      description='Create a Singularity image from docker')
+    images_singularity.add_argument('image', help='Docker image to convert to singularity.')
+    images_singularity.add_argument('output', action='store', help='Singularity image file output.')
+    images_singularity.add_argument('--host', dest='host', action='store_true',
+                              help='Use local singularity instead of docker container', default=False)
+    images_singularity.add_argument('--platform', dest='platform', action='store',
+                              help='Create a singularity images using other platform, requires buildx.')
+    common_arguments(images_singularity, registry=True, force=True)
+
     args = parser.parse_args(['-h'] if len(sys.argv) == 1 else None)
     if args.service == "version":
         print(version.__version__)
@@ -438,6 +449,13 @@ def cli():
                          default_registry=default_registry,
                          namespace=namespace,
                          platform=args.platform)
+        elif args.action == "singularity":
+            images.singularity(name=args.image,
+                               output=args.output,
+                               host=args.host,
+                               default_registry=default_registry,
+                               platform=args.platform,
+                               force=args.force)
 
 
 def main():
@@ -451,6 +469,8 @@ def main():
         sys.exit(-1)
     except Exception as ex:
         print(str(type(ex).__name__) + ":  " + str(ex), file=sys.stderr)
+        if "IGNIS_DEBUG" in os.environ and os.environ["IGNIS_DEBUG"]:
+            raise ex
         exit(-1)
 
 

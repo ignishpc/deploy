@@ -198,10 +198,8 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
                         print(" IGNORED")
 
                 build_list.append(
-                    __createDockerfile(wd, core + "-libs-compiler", names, cores_version[core],default_registry,
-                                       namespace, 300, base=names[0]+"-builder"))
-
-
+                    __createDockerfile(wd, core + "-libs-compiler", names, cores_version[core], default_registry,
+                                       namespace, 300, base=names[0] + "-builder"))
 
         if real_cores and full:
             custom_images.insert(0, ["full", "driver", "executor"] + list(real_cores.keys()) + full_libs)
@@ -278,6 +276,61 @@ def build(sources, local_sources, ignore_folders, version_filters, custom_images
                     tag = info['name'] + ':' + vt
                     img.tag(tag)
                     print("  ", tag)
+
+
+def singularity(name, output, host, default_registry, platform, force):
+    client = docker.from_env()
+    img_id = default_registry + name
+    if ':' not in name:
+        img_id += ":latest"
+    imgs = client.images.list(name=img_id, filters={"label": ["ignis"]})
+    if len(imgs) == 0:
+        raise RuntimeError("error: " + img_id + " not found")
+
+    resources = os.path.join(os.path.dirname(os.path.realpath(__file__)), "resources", "singularityce")
+    with tempfile.NamedTemporaryFile(mode="wb") as image:
+        for chunk in imgs[0].save(named=False):
+            image.write(chunk)
+        cmd = ["singularity", "build"]
+        if force:
+            cmd.append("--force")
+
+        if host:
+            import subprocess
+            with tempfile.NamedTemporaryFile(mode='w', suffix=".def") as sin:
+                with open(os.path.join(resources, "build.def")) as tp:
+                    sin.write(tp.read().replace("/ignis.img", image.name))
+                    sin.flush()
+
+                process = subprocess.Popen(cmd + [output, sin.name],
+                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
+                (err, _) = process.communicate()
+                exit_code = process.wait()
+        else:
+            output_folder = os.path.dirname(output)
+            output_file = os.path.basename(output)
+            mounts_list = [
+                docker.types.Mount(source=image.name, target="/ignis.img", type="bind"),
+                docker.types.Mount(source=os.path.join(resources, "build.def"), target="/build.def", type="bind"),
+                docker.types.Mount(source=os.path.abspath(output_folder), target="/target", type="bind"),
+            ]
+            namespace = img_id[:img_id.rindex('/')]
+            try:
+                container = client.containers.run(
+                    image=namespace + "/singularityce",
+                    remove=True,
+                    platform=platform,
+                    privileged=True,
+                    command=cmd + ["/target/" + output_file, "/build.def"],
+                    mounts=mounts_list,
+                )
+                exit_code = 0
+                err = ""
+            except docker.errors.ContainerError as ex:
+                exit_code = ex.exit_status
+                err = ex.stderr.decode(encoding="utf-8")
+    if exit_code != 0:
+        raise RuntimeError("singularity fails with error " + str(exit_code) + "\n" + err)
 
 
 def __getImages(client, version, default_registry, namespace, whitelist, blacklist, none=False):
@@ -475,7 +528,7 @@ def __createDockerfile(wd, id, cores, version, default_registry, namespace, orde
         ARG REGISTRY=""
         ARG NAMESPACE="ignishpc/"
         ARG TAG=""
-        FROM ${REGISTRY}${NAMESPACE}"""+base+"""${TAG}
+        FROM ${REGISTRY}${NAMESPACE}""" + base + """${TAG}
         ARG RELPATH=""
         """)
         for core in cores:

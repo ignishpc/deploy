@@ -1,0 +1,7 @@
+Bootstrap: docker-archive
+From: /ignis.img
+
+%post
+chmod -R 777 /opt/ignis
+chmod -R 755 /etc/ssh
+sed -i "s|#PidFile.*|PidFile /ssh/sshd.pid|" /etc/ssh/sshd_config
